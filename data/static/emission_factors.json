@@ -1,0 +1,392 @@
+{
+ "description": "Emission factors and efficiencies used to turn displaced MWh into tonnes of pollutant. Each row cites its source table.",
+ "sources": {
+  "emep2023": {
+   "title": "EMEP/EEA air pollutant emission inventory guidebook 2023, chapter 1.A.1 Energy industries, Tier 1 default emission factors (public electricity and heat production)",
+   "publisher": "European Environment Agency",
+   "year": 2023,
+   "url": "https://www.eea.europa.eu/en/analysis/publications/emep-eea-guidebook-2023/part-b-sectoral-guidance-chapters/1-energy/1-a-combustion/1-a-1-energy-industries-2023/@@download/file",
+   "range": "low and high are the guidebook's 95% confidence interval"
+  },
+  "ap42_3_3": {
+   "title": "AP-42, Fifth Edition, Volume I, Section 3.3 Gasoline and diesel industrial engines (April 2025 update; factor values unchanged from 10/96)",
+   "publisher": "US Environmental Protection Agency",
+   "year": 2025,
+   "url": "https://www.epa.gov/system/files/documents/2025-04/c03s03_april2025.pdf"
+  },
+  "wb2014": {
+   "title": "Diesel Power Generation: Inventories and Black Carbon Emissions in Nigeria, Table 13",
+   "publisher": "The World Bank",
+   "year": 2014,
+   "url": "https://documents1.worldbank.org/curated/en/853381501178909924/pdf/117772-WP-PUBLIC-52p-Report-DG-Set-Study-Nigeria.pdf"
+  },
+  "ecofys2018": {
+   "title": "International comparison of fossil power efficiency and CO2 intensity (Nierop and Humperdinck, Ecofys, for MRI Research Associates), based on IEA energy balances",
+   "publisher": "Ecofys (now Guidehouse)",
+   "year": 2018,
+   "url": "https://guidehouse.com/-/media/www/site/downloads/energy/2018/intl-comparison-of-fossil-power-efficiency--co2-in.pdf",
+   "range": "low and high are the lowest and highest country fleet averages reported"
+  }
+ },
+ "constants": {
+  "gj_per_mwh": {
+   "value": 3.6,
+   "source": "definition: 1 MWh = 3.6 GJ"
+  },
+  "g_per_lb": {
+   "value": 453.59237,
+   "source": "international avoirdupois pound, exact definition"
+  },
+  "kwh_per_hp_hr": {
+   "value": 0.745699872,
+   "source": "mechanical horsepower = 745.699872 W"
+  }
+ },
+ "power_plants": [
+  {
+   "fuel": "hard coal",
+   "pollutant": "NOx",
+   "value": 209.0,
+   "low": 200.0,
+   "high": 350.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-2 Tier 1 1.A.1.a hard coal (p.15)",
+   "notes": "NOx expressed as NO2"
+  },
+  {
+   "fuel": "hard coal",
+   "pollutant": "SO2",
+   "value": 820.0,
+   "low": 330.0,
+   "high": 5000.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-2 Tier 1 1.A.1.a hard coal (p.15)",
+   "notes": ""
+  },
+  {
+   "fuel": "hard coal",
+   "pollutant": "PM2.5",
+   "value": 3.4,
+   "low": 0.9,
+   "high": 90.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-2 Tier 1 1.A.1.a hard coal (p.15)",
+   "notes": ""
+  },
+  {
+   "fuel": "brown coal / lignite",
+   "pollutant": "NOx",
+   "value": 247.0,
+   "low": 143.0,
+   "high": 571.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-3 Tier 1 1.A.1.a brown coal (p.16)",
+   "notes": "NOx expressed as NO2"
+  },
+  {
+   "fuel": "brown coal / lignite",
+   "pollutant": "SO2",
+   "value": 1680.0,
+   "low": 330.0,
+   "high": 5000.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-3 Tier 1 1.A.1.a brown coal (p.16)",
+   "notes": ""
+  },
+  {
+   "fuel": "brown coal / lignite",
+   "pollutant": "PM2.5",
+   "value": 3.2,
+   "low": 1.0,
+   "high": 32.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-3 Tier 1 1.A.1.a brown coal (p.16)",
+   "notes": ""
+  },
+  {
+   "fuel": "natural gas",
+   "pollutant": "NOx",
+   "value": 89.0,
+   "low": 15.0,
+   "high": 185.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-4 Tier 1 1.A.1.a natural gas (p.17)",
+   "notes": "NOx expressed as NO2"
+  },
+  {
+   "fuel": "natural gas",
+   "pollutant": "SO2",
+   "value": 0.244,
+   "low": 0.03,
+   "high": 0.458,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-4 Tier 1 1.A.1.a natural gas (p.17)",
+   "notes": "SOx expressed as SO2; EU region value"
+  },
+  {
+   "fuel": "natural gas",
+   "pollutant": "PM2.5",
+   "value": 0.14,
+   "low": 0.09,
+   "high": 0.19,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-4 Tier 1 1.A.1.a natural gas (p.17)",
+   "notes": "published as upper limits (<)"
+  },
+  {
+   "fuel": "heavy fuel oil",
+   "pollutant": "NOx",
+   "value": 142.0,
+   "low": 70.0,
+   "high": 300.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-6 Tier 1 1.A.1.a heavy fuel oil (p.18)",
+   "notes": "NOx expressed as NO2"
+  },
+  {
+   "fuel": "heavy fuel oil",
+   "pollutant": "SO2",
+   "value": 495.0,
+   "low": 146.0,
+   "high": 1700.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-6 Tier 1 1.A.1.a heavy fuel oil (p.18)",
+   "notes": ""
+  },
+  {
+   "fuel": "heavy fuel oil",
+   "pollutant": "PM2.5",
+   "value": 19.3,
+   "low": 0.9,
+   "high": 90.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-6 Tier 1 1.A.1.a heavy fuel oil (p.18)",
+   "notes": ""
+  },
+  {
+   "fuel": "gas oil",
+   "pollutant": "NOx",
+   "value": 65.0,
+   "low": 22.0,
+   "high": 195.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-7 Tier 1 1.A.1.a gas oil (p.19)",
+   "notes": "NOx expressed as NO2"
+  },
+  {
+   "fuel": "gas oil",
+   "pollutant": "SO2",
+   "value": 46.5,
+   "low": 4.65,
+   "high": 465.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-7 Tier 1 1.A.1.a gas oil (p.19)",
+   "notes": ""
+  },
+  {
+   "fuel": "gas oil",
+   "pollutant": "PM2.5",
+   "value": 0.8,
+   "low": 0.3,
+   "high": 2.5,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-7 Tier 1 1.A.1.a gas oil (p.19)",
+   "notes": ""
+  },
+  {
+   "fuel": "solid biomass",
+   "pollutant": "NOx",
+   "value": 81.0,
+   "low": 40.0,
+   "high": 160.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-8 Tier 1 1.A.1.a solid biomass (p.20)",
+   "notes": "NOx expressed as NO2"
+  },
+  {
+   "fuel": "solid biomass",
+   "pollutant": "SO2",
+   "value": 10.8,
+   "low": 6.45,
+   "high": 15.1,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-8 Tier 1 1.A.1.a solid biomass (p.20)",
+   "notes": ""
+  },
+  {
+   "fuel": "solid biomass",
+   "pollutant": "PM2.5",
+   "value": 133.0,
+   "low": 66.0,
+   "high": 266.0,
+   "unit": "g/GJ (net calorific value)",
+   "source": "emep2023",
+   "table": "Table 3-8 Tier 1 1.A.1.a solid biomass (p.20)",
+   "notes": ""
+  }
+ ],
+ "gensets": [
+  {
+   "class": "ap42_3_3",
+   "pollutant": "NOx",
+   "value": 0.031,
+   "unit": "lb/hp-hr (power output)",
+   "source": "ap42_3_3",
+   "table": "Table 3.3-1 (p.3.3-7)",
+   "notes": "AP-42 rating D."
+  },
+  {
+   "class": "ap42_3_3",
+   "pollutant": "SO2",
+   "value": 0.00205,
+   "unit": "lb/hp-hr (power output)",
+   "source": "ap42_3_3",
+   "table": "Table 3.3-1 (p.3.3-7)",
+   "notes": "AP-42 rating D. SOx expressed as SO2."
+  },
+  {
+   "class": "ap42_3_3",
+   "pollutant": "PM2.5",
+   "value": 0.0022,
+   "unit": "lb/hp-hr (power output)",
+   "source": "ap42_3_3",
+   "table": "Table 3.3-1 (p.3.3-7)",
+   "notes": "AP-42 rating D. Section 3.3 treats all diesel engine particulate as 1 µm or smaller, so PM-10 is used for PM2.5."
+  },
+  {
+   "class": "wb2014_nigeria_old_lt600hp",
+   "pollutant": "PM2.5",
+   "value": 1.8728,
+   "unit": "kg/MWh (electricity output)",
+   "source": "wb2014",
+   "table": "Table 13 Emissions Factors for the Nigerian Diesel Genset Inventory Study (p.21)",
+   "notes": "Nigeria old diesel gensets under 600 hp. Derived by the World Bank from US EPA and IIASA factors. PM-10 used for PM2.5 (AP-42 3.3: diesel particulate is 1 µm or smaller)."
+  },
+  {
+   "class": "wb2014_nigeria_old_lt600hp",
+   "pollutant": "SO2",
+   "value": 1.0028,
+   "unit": "kg/MWh (electricity output)",
+   "source": "wb2014",
+   "table": "Table 13 Emissions Factors for the Nigerian Diesel Genset Inventory Study (p.21)",
+   "notes": "Nigeria old diesel gensets under 600 hp. Derived by the World Bank from US EPA and IIASA factors."
+  },
+  {
+   "class": "wb2014_nigeria_old_lt600hp",
+   "pollutant": "NOx",
+   "value": 26.3886,
+   "unit": "kg/MWh (electricity output)",
+   "source": "wb2014",
+   "table": "Table 13 Emissions Factors for the Nigerian Diesel Genset Inventory Study (p.21)",
+   "notes": "Nigeria old diesel gensets under 600 hp. Derived by the World Bank from US EPA and IIASA factors."
+  },
+  {
+   "class": "wb2014_nigeria_new_lt600hp",
+   "pollutant": "PM2.5",
+   "value": 1.3377,
+   "unit": "kg/MWh (electricity output)",
+   "source": "wb2014",
+   "table": "Table 13 Emissions Factors for the Nigerian Diesel Genset Inventory Study (p.21)",
+   "notes": "Nigeria new diesel gensets under 600 hp. Derived by the World Bank from US EPA and IIASA factors. PM-10 used for PM2.5 (AP-42 3.3: diesel particulate is 1 µm or smaller)."
+  },
+  {
+   "class": "wb2014_nigeria_new_lt600hp",
+   "pollutant": "SO2",
+   "value": 0.7163,
+   "unit": "kg/MWh (electricity output)",
+   "source": "wb2014",
+   "table": "Table 13 Emissions Factors for the Nigerian Diesel Genset Inventory Study (p.21)",
+   "notes": "Nigeria new diesel gensets under 600 hp. Derived by the World Bank from US EPA and IIASA factors."
+  },
+  {
+   "class": "wb2014_nigeria_new_lt600hp",
+   "pollutant": "NOx",
+   "value": 18.849,
+   "unit": "kg/MWh (electricity output)",
+   "source": "wb2014",
+   "table": "Table 13 Emissions Factors for the Nigerian Diesel Genset Inventory Study (p.21)",
+   "notes": "Nigeria new diesel gensets under 600 hp. Derived by the World Bank from US EPA and IIASA factors."
+  }
+ ],
+ "plant_efficiency": [
+  {
+   "fuel": "coal",
+   "central": 0.37,
+   "low": 0.35,
+   "high": 0.42,
+   "basis": "fleet-weighted average, gross electricity output over fuel input at net calorific value, data year 2016",
+   "source": "ecofys2018",
+   "table": "Section 2 (PDF p.14) and fuel results",
+   "notes": "BASIS: GROSS electricity (+0.175 x heat for public CHP) / fuel input at NCV (Section 2, PDF p.14). Public power and public CHP plants only (autoproducers excluded). Value = weighted average of the study's countries for 2016 (Summary, PDF p.4). low/high = range of country 2014-2016 averages stated in"
+  },
+  {
+   "fuel": "natural gas",
+   "central": 0.49,
+   "low": 0.38,
+   "high": 0.57,
+   "basis": "fleet-weighted average, gross electricity output over fuel input at net calorific value, data year 2016",
+   "source": "ecofys2018",
+   "table": "Section 2 (PDF p.14) and fuel results",
+   "notes": "BASIS: GROSS electricity (+0.175 x heat for public CHP) / fuel input at NCV (Section 2, PDF p.14). Public power and public CHP plants only (autoproducers excluded). Value = weighted average of the study's countries for 2016 (Summary, PDF p.4). low/high = range of country 2014-2016 averages stated in"
+  },
+  {
+   "fuel": "oil",
+   "central": 0.4,
+   "low": 0.28,
+   "high": 0.42,
+   "basis": "fleet-weighted average, gross electricity output over fuel input at net calorific value, data year 2016",
+   "source": "ecofys2018",
+   "table": "Section 2 (PDF p.14) and fuel results",
+   "notes": "BASIS: GROSS electricity (+0.175 x heat for public CHP) / fuel input at NCV (Section 2, PDF p.14). Public power and public CHP plants only (autoproducers excluded). Value = weighted average of the study's countries for 2016 (Summary, PDF p.4). low/high = range of country 2014-2016 averages stated in"
+  }
+ ],
+ "ember_fuel_mapping": {
+  "Coal": {
+   "factors": "hard coal",
+   "envelope_with": "brown coal / lignite",
+   "efficiency": "coal",
+   "note": "Central value uses hard coal; low and high span the hard coal and lignite confidence intervals because Ember reports them together."
+  },
+  "Gas": {
+   "factors": "natural gas",
+   "efficiency": "natural gas",
+   "note": "SO2 uses the EU-region factor."
+  },
+  "Other fossil": {
+   "factors": "heavy fuel oil",
+   "envelope_with": "gas oil",
+   "efficiency": "oil",
+   "note": "Central value uses heavy fuel oil; low and high span heavy fuel oil and gas oil."
+  },
+  "Bioenergy": {
+   "excluded": true,
+   "note": "Not counted: no sourced efficiency for biomass power plants. Results are lower than reality where bioenergy is a large share."
+  }
+ },
+ "genset_ranges": {
+  "central": "ap42_3_3",
+  "range_from": [
+   "ap42_3_3",
+   "wb2014_nigeria_new_lt600hp",
+   "wb2014_nigeria_old_lt600hp"
+  ],
+  "note": "Central value from AP-42 (the plan's chosen source for diesel generators); low and high span AP-42 and the World Bank Nigeria factors for new and old units under 600 hp."
+ }
+}

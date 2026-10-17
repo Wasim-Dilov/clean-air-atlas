@@ -1,0 +1,10 @@
+{
+ "pair": "GBP/EUR",
+ "gbp_per_eur": 0.84385,
+ "date": "2026-10-16",
+ "source": "European Central Bank, euro foreign exchange reference rates (Pound sterling, GBP)",
+ "url": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/eurofxref-graph-gbp.en.html",
+ "quote_convention": "GBP per 1 EUR (ECB: 'All currencies quoted against the euro (base currency)'); to convert GBP to EUR divide GBP amounts by this rate",
+ "retrieved": "2026-10-17",
+ "note": "Converting GBP to EUR changes the currency only. Defra values stay in 2025 prices and EEA values in 2021 prices; the methodology page shows both."
+}
