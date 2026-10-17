@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import time
@@ -52,7 +53,7 @@ def get_json(
                 sleep(wait)
                 continue
             raise FetchError(f"HTTP {err.code}: {_redact(url)}") from err
-        except (URLError, TimeoutError) as err:
+        except (URLError, TimeoutError, ConnectionError, http.client.HTTPException) as err:
             if attempt == max_retries:
                 raise FetchError(f"network error after {max_retries} retries: {_redact(url)}") from err
             wait = 2**attempt
@@ -83,7 +84,7 @@ def request(
                 sleep(_retry_after(err.headers, attempt))
                 continue
             raise FetchError(f"HTTP {err.code}: {_redact(url)}") from err
-        except (URLError, TimeoutError) as err:
+        except (URLError, TimeoutError, ConnectionError, http.client.HTTPException) as err:
             if attempt == max_retries:
                 raise FetchError(f"network error after {max_retries} retries: {_redact(url)}") from err
             sleep(2**attempt)
