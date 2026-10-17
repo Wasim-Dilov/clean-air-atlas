@@ -13,6 +13,8 @@ import {
 } from './stations';
 import { buildSlots, defaultSlot, formatSlot, seriesShard, type ModelManifest, type Slot, type StationManifest } from './timeline';
 import { loadWind, speedAndFrom, WindLayer, type WindField } from './wind';
+import { currentView, setupRouter } from './views/router';
+import { firstSymbolLayer } from './views/gridmix';
 
 const DATA = 'data/';
 const EMPTY: PointCollection = { type: 'FeatureCollection', features: [] };
@@ -46,6 +48,7 @@ const state = {
   windLayer: null as WindLayer | null,
   selected: null as number | null,
   playing: 0 as number,
+  airOn: currentView() === 'air',
 };
 
 function showNotice(text: string | null): void {
@@ -141,6 +144,17 @@ async function main(): Promise<void> {
     attributionControl: { compact: true },
   });
   if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { atlas: { map, state } });
+  let redraw: (() => Promise<void>) | null = null;
+  const styleReady = new Promise<void>((resolve) => map.once('style.load', () => resolve()));
+  setupRouter({
+    map,
+    ready: styleReady,
+    setAir: (on) => {
+      state.airOn = on;
+      if (!on && state.playing) $<HTMLButtonElement>('play').click();
+      void redraw?.();
+    },
+  });
   $('zoom-in').addEventListener('click', () => map.zoomIn());
   $('zoom-out').addEventListener('click', () => map.zoomOut());
 
@@ -157,7 +171,7 @@ async function main(): Promise<void> {
 
     if (model?.frames.length) {
       map.addSource('model', { type: 'image', url: DATA + model.frames[0].file, coordinates: model.bounds });
-      map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
+      map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstSymbolLayer(map));
     }
     map.addSource('stations', { type: 'geojson', data: EMPTY as never });
     map.addLayer({
@@ -190,18 +204,18 @@ async function main(): Promise<void> {
       if (seq !== drawSeq) return; // a newer draw started
       (map.getSource('stations') as GeoJSONSource).setData(fc as never);
       map.setPaintProperty('stations', 'circle-color', colorExpression() as never);
-      map.setLayoutProperty('stations', 'visibility', state.layers.stations ? 'visible' : 'none');
+      map.setLayoutProperty('stations', 'visibility', state.airOn && state.layers.stations ? 'visible' : 'none');
       if (state.selected !== null && fc.features.some((f) => f.id === state.selected)) {
         map.setFeatureState({ source: 'stations', id: state.selected }, { selected: true });
       }
       if (map.getLayer('model')) {
-        const show = state.layers.model && state.pollutant === 'pm25' && !!slot?.modelFile;
+        const show = state.airOn && state.layers.model && state.pollutant === 'pm25' && !!slot?.modelFile;
         map.setLayoutProperty('model', 'visibility', show ? 'visible' : 'none');
         if (show) (map.getSource('model') as ImageSource).updateImage({ url: DATA + slot!.modelFile! });
       }
       if (state.windLayer && state.wind) {
         const near = !slot || Math.abs(slot.t - Date.parse(state.wind.meta.valid)) <= 3 * 3_600_000;
-        state.windLayer.setEnabled(state.layers.wind && near);
+        state.windLayer.setEnabled(state.airOn && state.layers.wind && near);
         $('wind-sub').textContent = near ? windLabel(state.wind) : 'Shown for the current hours only';
       }
       setStatus();
@@ -301,6 +315,9 @@ async function main(): Promise<void> {
       state.layers.wind = (e.target as HTMLInputElement).checked;
       void draw();
     });
+
+    redraw = draw;
+    void draw();
   });
 
   setupSourcesDialog();
