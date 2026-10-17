@@ -1,0 +1,107 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Hourly, off the top of the hour. Pages allows about 10 builds an hour.
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r pipeline/requirements-dev.txt
+      - name: Pipeline tests
+        run: python -m pytest
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: web
+      - name: Web tests
+        run: npm test
+        working-directory: web
+
+  build:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      fetch_outcome: ${{ steps.fetch.outcome }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Fetch latest OpenAQ PM2.5
+        id: fetch
+        continue-on-error: true
+        env:
+          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
+        run: python -m pipeline.build_stations --out web/public/data
+
+      - name: Keep the last good frame
+        if: steps.fetch.outcome == 'failure'
+        run: >
+          python -m pipeline.fallback
+          --base-url "${{ steps.pages.outputs.base_url }}/data"
+          --out web/public/data
+          stations-pm25.json stations-pm25-index.json
+
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # The site keeps the last good frame, but a failed fetch should still turn the run red.
+  report:
+    needs: [build, deploy]
+    if: needs.build.outputs.fetch_outcome == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::OpenAQ fetch failed. The site was redeployed with the last good frame."
+          exit 1
