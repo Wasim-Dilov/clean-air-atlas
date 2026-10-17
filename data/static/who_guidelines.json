@@ -1,0 +1,17 @@
+{
+  "source": "WHO global air quality guidelines: particulate matter (PM2.5 and PM10), ozone, nitrogen dioxide, sulfur dioxide and carbon monoxide. Geneva: World Health Organization; 2021. ISBN 9789240034228. Executive summary, Table 0.1.",
+  "url": "https://www.who.int/publications/i/item/9789240034228",
+  "year": 2021,
+  "units": "µg/m³",
+  "notes": "24-hour values are the 99th percentile of the annual distribution (3-4 exceedance days a year). The map compares hourly station values against the 24-hour levels, which is indicative only.",
+  "pollutants": {
+    "pm25": {
+      "annual": { "guideline": 5, "interim_targets": { "IT-1": 35, "IT-2": 25, "IT-3": 15, "IT-4": 10 } },
+      "24h": { "guideline": 15, "interim_targets": { "IT-1": 75, "IT-2": 50, "IT-3": 37.5, "IT-4": 25 } }
+    },
+    "no2": {
+      "annual": { "guideline": 10, "interim_targets": { "IT-1": 40, "IT-2": 30, "IT-3": 20 } },
+      "24h": { "guideline": 25, "interim_targets": { "IT-1": 120, "IT-2": 50 } }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+# Local planning notes (kept out of the public repo)
+/plan.md
+
+# Generated data: built by the workflow, never committed
+web/public/data/
+/out/
+
+# Dependencies and build output
+node_modules/
+web/dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets and local env
+.env
+.env.*
+.cdsapirc
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Local tooling
+.claude/launch.json
