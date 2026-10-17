@@ -15,7 +15,10 @@ site and deploys it to GitHub Pages. No API is called from the browser.
   was measured, who provides the data and its last 72 hours.
 - NO₂ stations as well as PM2.5 (OpenAQ ppm values converted with the WHO factor).
 - A time slider over the last 72 hours of measurements plus the CAMS model forecast
-  (surface PM2.5, five days ahead), shaded where it is above the WHO guideline.
+  (PM2.5 and NO₂, five days ahead), shaded where it is above the WHO guideline.
+  CAMS has no surface NO₂ field, so the NO₂ layer takes the lowest model level and
+  converts it to µg/m³ with air density from surface pressure and 2 m temperature:
+  an approximation, and labelled as one on the map.
 - Animated 10 m wind from NOAA GFS (updated every run, no account needed). Still
   streamlines instead of animation when the system asks for reduced motion.
 - A phone layout: legend behind a button, station details in a bottom sheet, one-line
@@ -59,7 +62,10 @@ npm --prefix web test
 
 The 72-hour history is not stored in git. Each run copies it back from the live site,
 adds the new hour and prunes the oldest. CAMS is only requested when a newer model run
-is due (00 UTC run after 10:00 UTC, 12 UTC run after 22:00 UTC).
+is due (00 UTC run after 10:00 UTC, 12 UTC run after 22:00 UTC). That is one ADS
+request for PM2.5 and two for NO₂ (the model-level field, then surface pressure and
+2 m temperature), sharing one time budget. Each layer keeps its own frames if its
+requests fail.
 
 If a fetch fails, the workflow redeploys the last good data from the live site and
 marks the run as failed, so the map never goes blank and the failure is visible.
@@ -81,7 +87,10 @@ curated by hand from the sources named in each file.
 
 - Air quality: [OpenAQ](https://openaq.org) and its data providers (listed in the site).
 - Forecast: contains modified Copernicus Atmosphere Monitoring Service information
-  (CAMS global atmospheric composition forecasts, CC BY 4.0).
+  (CAMS global atmospheric composition forecasts, CC BY 4.0): surface PM2.5, and NO₂ on
+  the lowest model level with surface pressure and 2 m temperature.
+- Gas constant for dry air (NO₂ conversion): ECMWF, IFS Documentation Cy47r3, Part IV:
+  Physical Processes (2021), section 12.5 (CC BY 4.0).
 - Wind: NOAA NCEP Global Forecast System via NOAA Open Data Dissemination on AWS.
 - Electricity mix: Ember, Yearly Electricity Data (CC BY 4.0).
 - Solar: PVGIS © European Communities, 2001-2026 (EU Joint Research Centre).

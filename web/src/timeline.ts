@@ -12,6 +12,7 @@ export interface StationManifest {
 
 export interface ModelManifest {
   parameter: string;
+  note?: string;
   bounds: [[number, number], [number, number], [number, number], [number, number]];
   latest_run: string | null;
   frames: { valid: string; run: string; lead: number; file: string }[];
