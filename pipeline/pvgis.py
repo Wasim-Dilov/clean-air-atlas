@@ -78,8 +78,22 @@ def decode_topology(topo: dict) -> dict[str, list[list[tuple[float, float]]]]:
     return shapes
 
 
+def unwrap(ring: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Make longitudes continuous so rings that cross the date line do not jump by 360."""
+    out = [ring[0]]
+    for x, y in ring[1:]:
+        px = out[-1][0]
+        while x - px > 180:
+            x -= 360
+        while x - px < -180:
+            x += 360
+        out.append((x, y))
+    return out
+
+
 def ring_centroid(ring: list[tuple[float, float]]) -> tuple[float, float, float]:
     """Planar centroid (lon, lat) and absolute area of a ring in degree units."""
+    ring = unwrap(ring)
     a = cx = cy = 0.0
     for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
         cross = x0 * y1 - x1 * y0
@@ -94,7 +108,7 @@ def ring_centroid(ring: list[tuple[float, float]]) -> tuple[float, float, float]
 
 def representative_point(rings: list[list[tuple[float, float]]]) -> tuple[float, float]:
     lon, lat, _ = max((ring_centroid(r) for r in rings), key=lambda c: c[2])
-    return round(lat, 2), round(lon, 2)
+    return round(lat, 2), round((lon + 180) % 360 - 180, 2)
 
 
 # ------------------------------------------------------------- PVGIS
@@ -195,7 +209,16 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--only", nargs="*", help="refresh just these ISO3 countries in the existing file")
     args = ap.parse_args(argv)
+    if args.only:
+        data = json.loads(args.out.read_text())
+        fresh = build(countries=args.only)
+        data["countries"].update(fresh["countries"])
+        data["countries"] = dict(sorted(data["countries"].items()))
+        data["no_profile"] = sorted(set(data["no_profile"]) - set(fresh["countries"]))
+        write_json(args.out, data)
+        return 0
     data = build()
     if len(data["countries"]) < 100:
         log.error("only %d country profiles; refusing to overwrite", len(data["countries"]))
