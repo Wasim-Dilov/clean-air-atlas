@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable, Iterator
 
-from . import net
+from . import net, static
 
 log = logging.getLogger(__name__)
 
@@ -22,16 +22,54 @@ API_BASE = "https://api.openaq.org/v3"
 PAGE_LIMIT = 1000  # documented maximum page size
 REQUEST_GAP_S = 1.1  # free keys allow 60 requests a minute
 
-# OpenAQ parameter ids (https://docs.openaq.org/resources/parameters)
+# OpenAQ parameters (https://docs.openaq.org/resources/parameters). pm25 is id 2 in µg/m³.
+# NO2 ids are looked up by name at run time, because OpenAQ reports NO2 in ppm under
+# one id and possibly µg/m³ under another; every value is converted to µg/m³.
 PARAMETERS = {
-    "pm25": {"id": 2, "units": "µg/m³"},
+    "pm25": {"name": "pm25", "units": "µg/m³", "ids": [(2, "µg/m³")]},
+    "no2": {"name": "no2", "units": "µg/m³", "ids": None},
 }
 
-# Plausibility window for an hourly station value, in the parameter's units.
+# Plausibility window for an hourly station value, in µg/m³.
 # A data-quality filter for broken sensors, not a sourced statistic.
 PLAUSIBLE = {
     "pm25": (0.0, 1000.0),
+    "no2": (0.0, 2000.0),
 }
+
+_UGM3 = {"µg/m³", "μg/m³", "ug/m3", "µg/m3", "μg/m3"}
+
+
+def unit_factor(parameter: str, units: str) -> float | None:
+    """Multiplier from the reported units to µg/m³, or None if unsupported."""
+    u = (units or "").strip().lower()
+    if u in {x.lower() for x in _UGM3}:
+        return 1.0
+    if parameter == "no2" and u == "ppm":
+        return static.conversion("no2_ppm_to_ugm3")
+    if parameter == "no2" and u == "ppb":
+        return static.conversion("no2_ppb_to_ugm3")
+    return None
+
+
+def resolve(key: str, parameter: str, **kw: Any) -> list[tuple[int, float]]:
+    """(parameter id, factor to µg/m³) pairs to fetch for a pollutant."""
+    spec = PARAMETERS[parameter]
+    pairs = spec["ids"]
+    if pairs is None:
+        pairs = [(int(p["id"]), p.get("units", "")) for p in paginate("/parameters", {}, key, **kw)
+                 if p.get("name") == spec["name"]]
+    out = []
+    for pid, units in pairs:
+        factor = unit_factor(parameter, units)
+        if factor is None:
+            log.warning("skipping %s parameter %s in unsupported units %r", parameter, pid, units)
+            continue
+        out.append((pid, factor))
+    if not out:
+        raise net.FetchError(f"no usable OpenAQ parameter ids for {parameter}")
+    log.info("%s parameter ids: %s", parameter, out)
+    return out
 
 MAX_AGE = timedelta(hours=6)  # older readings are not "now"
 MAX_FUTURE = timedelta(hours=1)  # tolerate small clock skew only
@@ -65,21 +103,27 @@ def paginate(path: str, params: dict[str, Any], key: str, *, get: Getter | None 
     log.warning("stopped after %s pages of %s", max_pages, path)
 
 
-def fetch_locations(key: str, parameter: str, **kw: Any) -> dict[int, dict]:
+def fetch_locations(key: str, ids: list[tuple[int, float]], **kw: Any) -> dict[int, dict]:
     """Location metadata keyed by location id."""
-    pid = PARAMETERS[parameter]["id"]
     out: dict[int, dict] = {}
-    for loc in paginate("/locations", {"parameters_id": pid}, key, **kw):
+    pids = ",".join(str(pid) for pid, _ in ids)
+    for loc in paginate("/locations", {"parameters_id": pids}, key, **kw):
         out[int(loc["id"])] = loc
-    log.info("locations with %s: %d", parameter, len(out))
+    log.info("locations with parameters %s: %d", pids, len(out))
     return out
 
 
-def fetch_latest(key: str, parameter: str, now: datetime, **kw: Any) -> list[dict]:
-    pid = PARAMETERS[parameter]["id"]
+def fetch_latest(key: str, ids: list[tuple[int, float]], now: datetime, **kw: Any) -> list[dict]:
+    """Latest readings for every id, with values converted to µg/m³."""
     since = (now - MAX_AGE).strftime("%Y-%m-%dT%H:%M:%SZ")
-    rows = list(paginate(f"/parameters/{pid}/latest", {"datetime_min": since}, key, **kw))
-    log.info("latest %s readings since %s: %d", parameter, since, len(rows))
+    rows: list[dict] = []
+    for pid, factor in ids:
+        for row in paginate(f"/parameters/{pid}/latest", {"datetime_min": since}, key, **kw):
+            value = row.get("value")
+            if isinstance(value, (int, float)) and factor != 1.0:
+                row = {**row, "value": value * factor}
+            rows.append(row)
+    log.info("latest readings since %s for ids %s: %d", since, [p for p, _ in ids], len(rows))
     return rows
 
 

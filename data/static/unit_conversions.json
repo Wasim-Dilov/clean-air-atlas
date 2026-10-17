@@ -1,0 +1,25 @@
+{
+  "no2_ppm_to_ugm3": {
+    "value": 1914,
+    "units": "µg/m³ per ppm",
+    "conditions": "20 °C and 1013 hPa",
+    "source": "WHO global air quality guidelines (2021), ISBN 9789240034228, section 3.5 (nitrogen dioxide): 1 ppm = 1.914 mg/m³.",
+    "url": "https://www.who.int/publications/i/item/9789240034228",
+    "year": 2021
+  },
+  "no2_ppb_to_ugm3": {
+    "value": 1.914,
+    "units": "µg/m³ per ppb",
+    "conditions": "20 °C and 1013 hPa",
+    "source": "Same WHO factor divided by 1000 (1 ppm = 1000 ppb).",
+    "url": "https://www.who.int/publications/i/item/9789240034228",
+    "year": 2021
+  },
+  "kg_per_m3_to_ugm3": {
+    "value": 1000000000,
+    "units": "µg/m³ per kg/m³",
+    "source": "SI prefixes (1 kg = 10^9 µg). Used for CAMS particulate_matter_2.5um, delivered in kg m-3.",
+    "url": "https://www.bipm.org/en/publications/si-brochure",
+    "year": 2019
+  }
+}
