@@ -12,6 +12,7 @@ import {
   type Coords, type HistoryFrame, type PointCollection, type StationFrame, type StationIndex, type StationProps,
 } from './stations';
 import { buildSlots, defaultSlot, formatSlot, seriesShard, type ModelManifest, type Slot, type StationManifest } from './timeline';
+import { loadWind, speedAndFrom, WindLayer, type WindField } from './wind';
 
 const DATA = 'data/';
 const EMPTY: PointCollection = { type: 'FeatureCollection', features: [] };
@@ -40,7 +41,9 @@ const state = {
   model: null as ModelManifest | null,
   slots: [] as Slot[],
   slot: 0,
-  layers: { stations: true, model: true },
+  layers: { stations: true, model: true, wind: true },
+  wind: null as WindField | null,
+  windLayer: null as WindLayer | null,
   selected: null as number | null,
   playing: 0 as number,
 };
@@ -196,6 +199,11 @@ async function main(): Promise<void> {
         map.setLayoutProperty('model', 'visibility', show ? 'visible' : 'none');
         if (show) (map.getSource('model') as ImageSource).updateImage({ url: DATA + slot!.modelFile! });
       }
+      if (state.windLayer && state.wind) {
+        const near = !slot || Math.abs(slot.t - Date.parse(state.wind.meta.valid)) <= 3 * 3_600_000;
+        state.windLayer.setEnabled(state.layers.wind && near);
+        $('wind-sub').textContent = near ? windLabel(state.wind) : 'Shown for the current hours only';
+      }
       setStatus();
       renderSlider();
     };
@@ -277,9 +285,30 @@ async function main(): Promise<void> {
     });
 
     await rebuild();
+
+    loadWind(DATA)
+      .then((field) => {
+        state.wind = field;
+        state.windLayer = new WindLayer(map, field, $<HTMLCanvasElement>('wind'));
+        $<HTMLInputElement>('layer-wind').disabled = false;
+        void draw();
+      })
+      .catch((err) => {
+        console.warn('wind', err);
+        $('wind-sub').textContent = 'Not available right now';
+      });
+    $<HTMLInputElement>('layer-wind').addEventListener('change', (e) => {
+      state.layers.wind = (e.target as HTMLInputElement).checked;
+      void draw();
+    });
   });
 
   setupSourcesDialog();
+}
+
+function windLabel(field: WindField): string {
+  const t = new Date(field.meta.valid).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  return `NOAA GFS, valid ${t} UTC`;
 }
 
 function colorExpression(): unknown[] {
@@ -305,6 +334,11 @@ async function showStation(p: StationProps, coords: [number, number]): Promise<v
   $('st-age').textContent = p.age >= 0 && d.latest ? describeAge(minutesAgo(d.latest.generated, p.age)) : slot ? formatSlot(slot.t) : '';
   $('st-provider').textContent = provider || 'Not listed';
   $('st-coords').textContent = `${coords[1].toFixed(3)}, ${coords[0].toFixed(3)}`;
+  const uv = state.wind?.sample(coords[0], coords[1]);
+  if (uv) {
+    const w = speedAndFrom(uv[0], uv[1]);
+    $('st-wind').textContent = `${w.speed.toFixed(1)} m/s from ${w.from}`;
+  } else $('st-wind').textContent = 'Not available';
   $<HTMLAnchorElement>('st-link').href = `https://explore.openaq.org/locations/${p.id}`;
   $('station').hidden = false;
 
@@ -351,7 +385,7 @@ function setupLegendToggle(): void {
 
 function setupSourcesDialog(): void {
   const dialog = $<HTMLDialogElement>('sources');
-  $('open-sources').addEventListener('click', () => {
+  const open = () => {
     const providers = $('providers');
     const atts = $('attributions');
     providers.replaceChildren();
@@ -382,7 +416,8 @@ function setupSourcesDialog(): void {
       atts.append(li);
     });
     dialog.showModal();
-  });
+  };
+  document.querySelectorAll('[data-open-sources]').forEach((b) => b.addEventListener('click', open));
   $('sources-close').addEventListener('click', () => dialog.close());
 }
 
