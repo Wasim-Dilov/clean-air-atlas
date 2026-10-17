@@ -1,11 +1,14 @@
 import who from '../../data/static/who_guidelines.json';
 
 /**
- * Six-step ordinal ramp (one hue, lightness rising with concentration) for a dark map.
+ * Ordinal ramps (one hue, lightness rising with concentration) for a dark map.
  * Checked with the dataviz palette validator against the #090d15 map surface:
  * monotone lightness, visible step gaps, darkest step above 2:1 contrast.
  */
 export const PM25_RAMP = ['#a83902', '#d24903', '#f5642b', '#ff936d', '#ffc0ab', '#fee5dc'] as const;
+export const NO2_RAMP = ['#a83902', '#f5642b', '#ffc0ab', '#fee5dc'] as const;
+
+export type Pollutant = 'pm25' | 'no2';
 
 export interface Band {
   index: number;
@@ -15,18 +18,28 @@ export interface Band {
   label: string;
 }
 
-const pm25Day = who.pollutants.pm25['24h'];
+export interface PollutantSpec {
+  id: Pollutant;
+  label: string;
+  guideline: number;
+  /** WHO 2021 24-hour levels, ascending: guideline, then interim targets from strictest to loosest. */
+  edges: readonly number[];
+  ramp: readonly string[];
+}
 
-/** WHO 2021 24-hour PM2.5 levels, ascending: guideline, IT-4, IT-3, IT-2, IT-1. */
-export const PM25_EDGES: readonly number[] = [
-  pm25Day.guideline,
-  pm25Day.interim_targets['IT-4'],
-  pm25Day.interim_targets['IT-3'],
-  pm25Day.interim_targets['IT-2'],
-  pm25Day.interim_targets['IT-1'],
-];
+function whoEdges(p: Pollutant): number[] {
+  const day = who.pollutants[p]['24h'];
+  const its = Object.values(day.interim_targets as Record<string, number>).sort((a, b) => a - b);
+  return [day.guideline, ...its];
+}
 
-export const PM25_GUIDELINE = pm25Day.guideline;
+export const POLLUTANTS: Record<Pollutant, PollutantSpec> = {
+  pm25: { id: 'pm25', label: 'PM2.5', guideline: who.pollutants.pm25['24h'].guideline, edges: whoEdges('pm25'), ramp: PM25_RAMP },
+  no2: { id: 'no2', label: 'NO₂', guideline: who.pollutants.no2['24h'].guideline, edges: whoEdges('no2'), ramp: NO2_RAMP },
+};
+
+export const PM25_EDGES: readonly number[] = POLLUTANTS.pm25.edges;
+export const PM25_GUIDELINE = POLLUTANTS.pm25.guideline;
 
 /** Band index for a value: a value equal to an edge belongs to the lower band (≤ guideline meets it). */
 export function bandIndex(value: number, edges: readonly number[] = PM25_EDGES): number {

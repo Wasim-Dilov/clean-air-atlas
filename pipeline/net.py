@@ -61,6 +61,39 @@ def get_json(
     raise FetchError(f"unreachable: {_redact(url)}")
 
 
+def request(
+    url: str,
+    headers: Mapping[str, str] | None = None,
+    *,
+    data: bytes | None = None,
+    method: str | None = None,
+    opener: Callable[..., Any] = urlopen,
+    sleep: Callable[[float], None] = time.sleep,
+    max_retries: int = 4,
+    timeout: float = 120,
+) -> bytes:
+    """Raw request returning the body bytes, with the same retry rules as get_json."""
+    req = Request(url, data=data, method=method, headers={"User-Agent": USER_AGENT, **(headers or {})})
+    for attempt in range(max_retries + 1):
+        try:
+            with opener(req, timeout=timeout) as resp:
+                return resp.read()
+        except HTTPError as err:
+            if (err.code == 429 or 500 <= err.code < 600) and attempt < max_retries:
+                sleep(_retry_after(err.headers, attempt))
+                continue
+            raise FetchError(f"HTTP {err.code}: {_redact(url)}") from err
+        except (URLError, TimeoutError) as err:
+            if attempt == max_retries:
+                raise FetchError(f"network error after {max_retries} retries: {_redact(url)}") from err
+            sleep(2**attempt)
+    raise FetchError(f"unreachable: {_redact(url)}")
+
+
+def get_bytes(url: str, headers: Mapping[str, str] | None = None, **kw: Any) -> bytes:
+    return request(url, headers, **kw)
+
+
 def _retry_after(headers: Any, attempt: int) -> float:
     for name in ("retry-after", "x-ratelimit-reset"):
         value = headers.get(name) if headers else None

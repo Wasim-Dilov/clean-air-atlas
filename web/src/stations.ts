@@ -72,6 +72,33 @@ export function toGeoJSON(frame: StationFrame, edges: readonly number[] = PM25_E
   return { type: 'FeatureCollection', features };
 }
 
+/** One hour of the rolling history: ids and values, with positions in a shared coords file. */
+export interface HistoryFrame {
+  t: string;
+  id: number[];
+  v: number[];
+}
+
+export interface Coords {
+  id: number[];
+  lon: number[];
+  lat: number[];
+}
+
+export function historyToGeoJSON(h: HistoryFrame, coords: Coords, edges: readonly number[]): PointCollection {
+  const pos = new Map<number, [number, number]>();
+  coords.id.forEach((id, i) => pos.set(id, [coords.lon[i], coords.lat[i]]));
+  const features: PointFeature[] = [];
+  h.id.forEach((id, i) => {
+    const p = pos.get(id);
+    if (!p) return;
+    const v = h.v[i];
+    features.push({ type: 'Feature', id, geometry: { type: 'Point', coordinates: p }, properties: { id, v, b: bandIndex(v, edges), age: -1 } });
+  });
+  features.sort((a, b) => a.properties.v - b.properties.v);
+  return { type: 'FeatureCollection', features };
+}
+
 export async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`${res.status} loading ${url}`);

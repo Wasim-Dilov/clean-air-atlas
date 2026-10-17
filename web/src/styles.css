@@ -146,3 +146,48 @@ dialog p { font-size: 13px; color: var(--ink-2); }
   .big { font-size: 36px; }
   .credits { font-size: 10px; padding: 4px 12px; }
 }
+
+/* Timeline (block 2) */
+.timeline {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+  display: flex; align-items: center; gap: 14px; padding: 10px 16px;
+  background: var(--panel); border-top: 1px solid var(--line);
+}
+.play { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--control); border-radius: 4px; background: transparent; color: var(--ink); }
+.play .icon-pause, .play.on .icon-play { display: none; }
+.play.on .icon-pause { display: block; }
+.track { flex: 1; min-width: 0; --now: 100%; }
+.track input[type='range'] {
+  width: 100%; margin: 0; height: 28px; background: transparent; accent-color: var(--ink);
+  -webkit-appearance: none; appearance: none;
+}
+.track input[type='range']::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(90deg, var(--ink) 0 var(--now), transparent var(--now)),
+    repeating-linear-gradient(90deg, var(--off) 0 4px, transparent 4px 8px);
+}
+.track input[type='range']::-moz-range-track {
+  height: 2px;
+  background: linear-gradient(90deg, var(--ink) 0 var(--now), transparent var(--now)),
+    repeating-linear-gradient(90deg, var(--off) 0 4px, transparent 4px 8px);
+}
+.track input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border-radius: 50%;
+  background: var(--ink); border: 2px solid var(--panel);
+}
+.track input[type='range']::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel); }
+.track-legend { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
+.slot-label { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 150px; font-size: 13px; }
+.muted { color: var(--muted); font-size: 11px; }
+.mapwrap .maplibregl-ctrl-bottom-right, .mapwrap .maplibregl-ctrl-bottom-left { bottom: 66px; }
+
+.spark figcaption { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.spark svg { display: block; overflow: visible; }
+.spark-axis { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
+figure.section { margin: 0; }
+
+@media (max-width: 760px) {
+  .timeline { gap: 10px; padding: 8px 10px; }
+  .slot-label { min-width: 0; max-width: 120px; font-size: 12px; text-align: right; }
+  .panel-right { bottom: 66px; }
+}
