@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: pip install -r pipeline/requirements-dev.txt
+      - run: pip install -r pipeline/requirements.txt -r pipeline/requirements-dev.txt
       - name: Pipeline tests
         run: python -m pytest
       - uses: actions/setup-node@v5
@@ -47,6 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       fetch_outcome: ${{ steps.fetch.outcome }}
+      cams_outcome: ${{ steps.cams.outcome }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -60,12 +61,19 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
-      - name: Fetch latest OpenAQ PM2.5
+      - run: pip install -r pipeline/requirements.txt
+
+      # History lives on the live site, not in git: copy the last 72 hours back in first.
+      - name: Pull history from the live site
+        continue-on-error: true
+        run: python -m pipeline.history pull --base-url "${{ steps.pages.outputs.base_url }}/data" --out web/public/data
+
+      - name: Fetch latest OpenAQ PM2.5 and NO2
         id: fetch
         continue-on-error: true
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
-        run: python -m pipeline.build_stations --out web/public/data
+        run: python -m pipeline.build_stations --out web/public/data --history
 
       - name: Keep the last good frame
         if: steps.fetch.outcome == 'failure'
@@ -73,7 +81,17 @@ jobs:
           python -m pipeline.fallback
           --base-url "${{ steps.pages.outputs.base_url }}/data"
           --out web/public/data
-          stations-pm25.json stations-pm25-index.json
+          --required stations-pm25.json
+          -- stations-pm25.json stations-pm25-index.json stations-no2.json stations-no2-index.json
+
+      # Calls the ADS only when a newer CAMS run is due (twice a day); otherwise keeps frames.
+      - name: CAMS PM2.5 forecast
+        id: cams
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
+        run: python -m pipeline.cams --out web/public/data --timeout-min 20
 
       - run: npm ci
         working-directory: web
@@ -99,9 +117,9 @@ jobs:
   # The site keeps the last good frame, but a failed fetch should still turn the run red.
   report:
     needs: [build, deploy]
-    if: needs.build.outputs.fetch_outcome == 'failure'
+    if: needs.build.outputs.fetch_outcome == 'failure' || needs.build.outputs.cams_outcome == 'failure'
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "::error::OpenAQ fetch failed. The site was redeployed with the last good frame."
+          echo "::error::A data fetch failed (OpenAQ: ${{ needs.build.outputs.fetch_outcome }}, CAMS: ${{ needs.build.outputs.cams_outcome }}). The site keeps the last good frames."
           exit 1
