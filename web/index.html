@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Clean Air Atlas</title>
+    <meta name="description" content="Live air quality from measuring stations around the world, compared with WHO guideline levels." />
+    <meta name="theme-color" content="#0b1018" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b1018'/%3E%3Ccircle cx='8' cy='8' r='3.5' fill='%23ff936d'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">Clean Air Atlas</div>
+      <nav class="tabs" aria-label="Views">
+        <a href="./" aria-current="page">Air now</a>
+      </nav>
+      <div class="spacer"></div>
+      <span id="status" class="status" role="status">Loading stations…</span>
+    </header>
+
+    <div class="layout">
+      <aside class="panel panel-left" id="controls" aria-label="Layers and legend">
+        <button type="button" class="legend-toggle" id="legend-toggle" aria-expanded="false" aria-controls="controls-body">
+          Legend
+        </button>
+        <div class="panel-body" id="controls-body">
+          <section class="section">
+            <h2>Pollutant</h2>
+            <div class="seg" role="group" aria-label="Pollutant">
+              <button type="button" aria-pressed="true">PM2.5</button>
+              <button type="button" aria-pressed="false" disabled title="Coming with the next update">NO₂</button>
+            </div>
+          </section>
+          <section class="section">
+            <h2>Layers</h2>
+            <label class="check">
+              <input type="checkbox" id="layer-stations" checked />
+              <span><span class="check-title">Measured stations</span><span class="check-sub">OpenAQ, hourly</span></span>
+            </label>
+          </section>
+          <section class="section">
+            <h2>PM2.5, µg/m³</h2>
+            <div class="ramp" id="legend-ramp"></div>
+            <div class="ramp-labels" id="legend-labels"></div>
+            <p class="note">Bands follow the WHO 2021 24-hour levels. The first band meets the guideline. Hourly readings are compared with a 24-hour level, so treat the colour as a guide.</p>
+            <p class="note" id="station-count"></p>
+          </section>
+        </div>
+      </aside>
+
+      <main class="mapwrap">
+        <div id="map" aria-label="Map of air quality stations"></div>
+        <div class="zoom" role="group" aria-label="Zoom">
+          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+          <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+        </div>
+        <div id="notice" class="notice" role="alert" hidden></div>
+      </main>
+
+      <aside class="panel panel-right" id="station" aria-label="Selected station" hidden>
+        <div class="station-head">
+          <div>
+            <div class="eyebrow" id="st-place"></div>
+            <h1 id="st-name"></h1>
+          </div>
+          <button type="button" class="icon-btn" id="st-close" aria-label="Close station panel">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m3 3 8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          </button>
+        </div>
+        <div class="section">
+          <div class="reading"><span class="big" id="st-value"></span><span class="unit">µg/m³ PM2.5</span></div>
+          <div class="who" id="st-who"><span class="swatch" id="st-swatch"></span><span id="st-who-text"></span></div>
+        </div>
+        <dl class="rows">
+          <dt>Measured</dt><dd id="st-age"></dd>
+          <dt>Data provider</dt><dd id="st-provider"></dd>
+          <dt>Location</dt><dd id="st-coords"></dd>
+        </dl>
+        <div class="section">
+          <a class="link" id="st-link" target="_blank" rel="noopener">See this station on OpenAQ</a>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="credits">
+      <span>Air quality: <a href="https://openaq.org" target="_blank" rel="noopener">OpenAQ</a> and its <button type="button" class="linklike" id="open-sources">data providers</button></span>
+      <span>Guideline levels: WHO global air quality guidelines, 2021</span>
+      <span>Map: <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>, data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></span>
+    </footer>
+
+    <dialog id="sources" aria-labelledby="sources-title">
+      <div class="dialog-head">
+        <h2 id="sources-title">Data sources</h2>
+        <button type="button" class="icon-btn" id="sources-close" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m3 3 8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        </button>
+      </div>
+      <p>Station readings come from <a href="https://openaq.org" target="_blank" rel="noopener">OpenAQ</a>, which gathers them from the providers below. Each provider's licence applies to its data.</p>
+      <h3>Providers in the current frame</h3>
+      <ul id="providers" class="plain"></ul>
+      <h3>Credits requested by data licences</h3>
+      <ul id="attributions" class="plain"></ul>
+      <p class="note">WHO levels: WHO global air quality guidelines (2021), ISBN 9789240034228, Table 0.1.</p>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
