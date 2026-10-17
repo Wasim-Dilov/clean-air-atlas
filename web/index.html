@@ -57,10 +57,15 @@
               <input type="checkbox" id="layer-stations" checked />
               <span><span class="check-title">Measured stations</span><span class="check-sub">OpenAQ, hourly</span></span>
             </label>
-            <label class="check">
-              <input type="checkbox" id="layer-model" checked />
-              <span><span class="check-title">Model estimate</span><span class="check-sub" id="model-sub">CAMS, updated twice a day</span></span>
-            </label>
+            <div class="shading">
+              <span class="check-title">Shading</span>
+              <div class="seg seg-3" role="group" aria-label="Shading">
+                <button type="button" data-shading="stations" aria-pressed="true">Stations</button>
+                <button type="button" data-shading="model" aria-pressed="false">Model</button>
+                <button type="button" data-shading="off" aria-pressed="false">Off</button>
+              </div>
+              <span class="check-sub" id="shading-sub"></span>
+            </div>
             <label class="check">
               <input type="checkbox" id="layer-wind" checked disabled />
               <span><span class="check-title">Wind at 10 m</span><span class="check-sub" id="wind-sub">Loading…</span></span>
@@ -71,7 +76,7 @@
             <div class="ramp" id="legend-ramp"></div>
             <div class="ramp-labels" id="legend-labels"></div>
             <p class="note">Bands follow the WHO 2021 24-hour levels. The first band meets the guideline. Hourly readings are compared with a 24-hour level, so treat the colour as a guide.</p>
-            <p class="note">Dots are measurements. The shaded field is a model estimate and only shows where it is above the guideline.</p>
+            <p class="note">Dots are measurements. Station shading is smoothed from stations within about 200 km; model shading is a CAMS estimate shown only above the guideline.</p>
             <p class="note" id="station-count"></p>
           </section>
         </div>

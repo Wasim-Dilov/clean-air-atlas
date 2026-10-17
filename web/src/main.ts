@@ -13,6 +13,7 @@ import {
 } from './stations';
 import { buildSlots, defaultSlot, formatSlot, seriesShard, type ModelManifest, type Slot, type StationManifest } from './timeline';
 import { loadWind, speedAndFrom, WindLayer, type WindField } from './wind';
+import { HazeLayer } from './haze';
 import { currentView, setupRouter } from './views/router';
 import { firstSymbolLayer } from './views/gridmix';
 
@@ -31,6 +32,11 @@ function load<T>(path: string): Promise<T> {
   return cache.get(path) as Promise<T>;
 }
 
+type Shading = 'stations' | 'model' | 'off';
+
+// Zone alphas per WHO band: the clean band is visible but faint, worse bands stronger.
+const HAZE_ALPHAS: Record<Pollutant, number[]> = { pm25: [80, 115, 140, 160, 180, 195], no2: [80, 135, 170, 195] };
+
 interface PollutantData {
   latest: StationFrame | null;
   index: StationIndex | null;
@@ -43,7 +49,10 @@ const state = {
   model: null as ModelManifest | null,
   slots: [] as Slot[],
   slot: 0,
-  layers: { stations: true, model: true, wind: true },
+  layers: { stations: true, wind: true },
+  shading: 'stations' as Shading,
+  haze: null as HazeLayer | null,
+  hazeKey: '',
   wind: null as WindField | null,
   windLayer: null as WindLayer | null,
   selected: null as number | null,
@@ -79,10 +88,15 @@ function renderLegend(): void {
     btn.setAttribute('aria-pressed', String(btn.dataset.pollutant === state.pollutant));
   });
   const modelAvailable = state.pollutant === 'pm25' && !!state.model?.frames.length;
-  $<HTMLInputElement>('layer-model').disabled = !modelAvailable;
-  $('model-sub').textContent = state.pollutant === 'pm25'
-    ? (state.model?.frames.length ? 'CAMS, updated twice a day' : 'Not available yet')
-    : 'PM2.5 only for now';
+  document.querySelectorAll<HTMLButtonElement>('[data-shading]').forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.shading === state.shading));
+    if (btn.dataset.shading === 'model') btn.disabled = !modelAvailable;
+  });
+  $('shading-sub').textContent = state.shading === 'model'
+    ? 'CAMS model estimate, updated twice a day'
+    : state.shading === 'stations'
+      ? `Smoothed from nearby stations for display, not measured between them.${modelAvailable ? ' Forecast hours use the model.' : ''}`
+      : 'No shading';
 }
 
 async function loadPollutant(p: Pollutant): Promise<PollutantData> {
@@ -173,6 +187,7 @@ async function main(): Promise<void> {
       map.addSource('model', { type: 'image', url: DATA + model.frames[0].file, coordinates: model.bounds });
       map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstSymbolLayer(map));
     }
+    state.haze = new HazeLayer(map, firstSymbolLayer(map));
     map.addSource('stations', { type: 'geojson', data: EMPTY as never });
     map.addLayer({
       id: 'stations',
@@ -180,7 +195,7 @@ async function main(): Promise<void> {
       source: 'stations',
       paint: {
         'circle-color': colorExpression() as never,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, ['+', 2, ['*', ['get', 'b'], 0.35]], 6, ['+', 4, ['*', ['get', 'b'], 0.6]], 12, 9],
+        'circle-radius': dotRadius(true) as never,
         'circle-stroke-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#edf1f7', '#090d15'],
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 0.8],
       },
@@ -208,10 +223,29 @@ async function main(): Promise<void> {
       if (state.selected !== null && fc.features.some((f) => f.id === state.selected)) {
         map.setFeatureState({ source: 'stations', id: state.selected }, { selected: true });
       }
+      // Shading: station zones by default; the model where chosen, and in forecast hours with no stations.
+      const modelOk = state.pollutant === 'pm25' && !!slot?.modelFile && !!map.getLayer('model');
+      let shading = state.shading;
+      if (shading === 'model' && !modelOk) shading = 'stations';
+      if (shading === 'stations' && slot && !slot.stationFile && modelOk) shading = 'model';
       if (map.getLayer('model')) {
-        const show = state.airOn && state.layers.model && state.pollutant === 'pm25' && !!slot?.modelFile;
+        const show = state.airOn && shading === 'model' && modelOk;
         map.setLayoutProperty('model', 'visibility', show ? 'visible' : 'none');
         if (show) (map.getSource('model') as ImageSource).updateImage({ url: DATA + slot!.modelFile! });
+      }
+      if (state.haze) {
+        const show = state.airOn && shading === 'stations' && fc.features.length > 0;
+        const key = `${state.pollutant}|${slot?.t ?? 'latest'}|${fc.features.length}`;
+        if (show && key !== state.hazeKey) {
+          const spec = POLLUTANTS[state.pollutant];
+          state.haze.update(
+            fc.features.map((f) => ({ lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], v: f.properties.v })),
+            { edges: spec.edges, ramp: spec.ramp, alphas: HAZE_ALPHAS[state.pollutant] },
+          );
+          state.hazeKey = key;
+        }
+        state.haze.setVisible(show);
+        map.setPaintProperty('stations', 'circle-radius', dotRadius(!show) as never);
       }
       if (state.windLayer && state.wind) {
         const near = !slot || Math.abs(slot.t - Date.parse(state.wind.meta.valid)) <= 3 * 3_600_000;
@@ -278,10 +312,13 @@ async function main(): Promise<void> {
       state.layers.stations = (e.target as HTMLInputElement).checked;
       void draw();
     });
-    $<HTMLInputElement>('layer-model').addEventListener('change', (e) => {
-      state.layers.model = (e.target as HTMLInputElement).checked;
-      void draw();
-    });
+    document.querySelectorAll<HTMLButtonElement>('[data-shading]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        state.shading = btn.dataset.shading as Shading;
+        renderLegend();
+        void draw();
+      }),
+    );
 
     map.on('click', 'stations', (e: MapLayerMouseEvent) => {
       const f = e.features?.[0];
@@ -326,6 +363,12 @@ async function main(): Promise<void> {
 function windLabel(field: WindField): string {
   const t = new Date(field.meta.valid).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   return `NOAA GFS, valid ${t} UTC`;
+}
+
+/** Dot size by zoom and band; smaller while station zones carry the colour. */
+function dotRadius(full: boolean): unknown[] {
+  const k = full ? 1 : 0.6;
+  return ['interpolate', ['linear'], ['zoom'], 1, ['*', k, ['+', 2, ['*', ['get', 'b'], 0.35]]], 6, ['*', k, ['+', 4, ['*', ['get', 'b'], 0.6]]], 12, 9 * k];
 }
 
 function colorExpression(): unknown[] {
