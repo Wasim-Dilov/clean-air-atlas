@@ -85,13 +85,14 @@ jobs:
           -- stations-pm25.json stations-pm25-index.json stations-no2.json stations-no2-index.json
 
       # Calls the ADS only when a newer CAMS run is due (twice a day); otherwise keeps frames.
-      - name: CAMS PM2.5 forecast
+      # Three requests (PM2.5, NO2, surface pressure and 2 m temperature) share the --timeout-min budget.
+      - name: CAMS PM2.5 and NO2 forecast
         id: cams
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 30
         env:
           ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
-        run: python -m pipeline.cams --out web/public/data --timeout-min 20
+        run: python -m pipeline.cams --out web/public/data --timeout-min 25
 
       # Wind changes every 6 hours; the frame pulled from the live site stays if this fails.
       - name: GFS 10 m wind
