@@ -18,8 +18,16 @@
   "kg_per_m3_to_ugm3": {
     "value": 1000000000,
     "units": "µg/m³ per kg/m³",
-    "source": "SI prefixes (1 kg = 10^9 µg). Used for CAMS particulate_matter_2.5um, delivered in kg m-3.",
+    "source": "SI prefixes (1 kg = 10^9 µg). Used for CAMS particulate_matter_2.5um, delivered in kg m-3, and for CAMS nitrogen dioxide once its mass mixing ratio has been multiplied by air density.",
     "url": "https://www.bipm.org/en/publications/si-brochure",
     "year": 2019
+  },
+  "dry_air_gas_constant": {
+    "value": 287.0597,
+    "units": "J kg-1 K-1",
+    "source": "ECMWF, IFS Documentation Cy47r3, Part IV: Physical Processes (2021), chapter 12, section 12.5, page 210: R_d = R/M_d = 287.0597 J kg-1 K-1, with R = 8.31451 J K-1 mol-1 and M_d = 28.9644e-3 kg mol-1. These are the constants of the IFS model that produces CAMS. CC BY 4.0.",
+    "url": "https://www.ecmwf.int/sites/default/files/elibrary/2021/20198-ifs-documentation-cy47r3-part-vi-physical-processes.pdf",
+    "year": 2021,
+    "used_for": "Air density for the CAMS NO2 layer, rho = p / (R_d T), from surface pressure (Pa) and 2 m temperature (K). Treats the air as dry, so the result is an approximation."
   }
 }
