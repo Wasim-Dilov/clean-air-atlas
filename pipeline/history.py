@@ -131,6 +131,19 @@ def pull(base_url: str, out: Path, parameters: tuple[str, ...] = PARAMETERS,
         rel = f"model/{parameter}/manifest.json"
         counts[f"model/{parameter}"] = _pull_set(base_url, out, rel, "frames", "file", get_bytes, json_files=False,
                                                  manifest_getter=get_json)
+    # Current wind frame: kept if this run's GFS fetch fails.
+    for rel, getter, is_json in (("wind/wind.json", get_json, True), ("wind/wind.png", get_bytes, False)):
+        try:
+            payload = getter(net.build_url(base_url, rel))
+        except net.FetchError:
+            counts[rel] = 0
+            continue
+        if is_json:
+            write_json(out / rel, payload)
+        else:
+            (out / rel).parent.mkdir(parents=True, exist_ok=True)
+            (out / rel).write_bytes(payload)
+        counts[rel] = 1
     return counts
 
 
