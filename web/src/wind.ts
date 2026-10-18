@@ -243,6 +243,11 @@ export class WindLayer {
       p.y = pt.y;
       p.drawn = true;
     }
+    // A faint dark casing under the light streaks keeps them visible over light clouds.
+    ctx.lineWidth = 2.6;
+    ctx.strokeStyle = 'rgba(9, 13, 21, 0.3)';
+    ctx.stroke(slow);
+    ctx.stroke(fast);
     ctx.lineWidth = 1.1;
     ctx.strokeStyle = 'rgba(223, 230, 239, 0.45)';
     ctx.stroke(slow);
@@ -257,8 +262,6 @@ export class WindLayer {
     ctx.clearRect(0, 0, w, h);
     const c = this.map.getCenter();
     const k = this.k() * 2;
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(223, 230, 239, 0.45)';
     const path = new Path2D();
     for (const p of this.particles.slice(0, 1200)) {
       let start = true;
@@ -271,6 +274,11 @@ export class WindLayer {
         if (!this.advance(p, k)) break;
       }
     }
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(9, 13, 21, 0.3)';
+    ctx.stroke(path);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(223, 230, 239, 0.45)';
     ctx.stroke(path);
   }
 }
