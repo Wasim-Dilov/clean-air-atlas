@@ -14,6 +14,9 @@ site and deploys it to GitHub Pages. No API is called from the browser.
 - Click a station for its latest reading, how it compares with the WHO level, when it
   was measured, who provides the data and its last 72 hours.
 - NO₂ stations as well as PM2.5 (OpenAQ ppm values converted with the WHO factor).
+- Coloured zones: a soft field smoothed from nearby stations (about 1° Gaussian), drawn
+  under the place names and left clear far from any station. It shows the pattern, not
+  measured values between stations. Switch to the CAMS model or turn shading off.
 - A time slider over the last 72 hours of measurements plus the CAMS model forecast
   (surface PM2.5, five days ahead), shaded where it is above the WHO guideline.
 - Animated 10 m wind from NOAA GFS (updated every run, no account needed). Still

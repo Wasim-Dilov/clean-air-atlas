@@ -294,3 +294,7 @@ body[data-view='grid'] .air-only, body:not([data-view='grid']) .grid-only { disp
   .years { padding: 8px 10px; }
   #country { bottom: 60px; }
 }
+
+/* Shading control */
+.shading { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 6px; }
+.shading .seg button:disabled { opacity: 0.4; }
