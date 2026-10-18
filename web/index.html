@@ -15,7 +15,10 @@
     <header class="topbar">
       <div class="brand">Clean Air Atlas</div>
       <nav class="tabs" aria-label="Views">
-        <a href="./" aria-current="page">Air now</a>
+        <a href="#air" data-view="air" aria-current="page">Air now</a>
+        <a href="#grid" data-view="grid">Grid mix</a>
+        <a href="#sim" data-view="sim">Simulator</a>
+        <a href="#methods" data-view="methods">Methods</a>
       </nav>
       <div class="spacer"></div>
       <span id="status" class="status" role="status">Loading…</span>
@@ -27,14 +30,28 @@
           Legend
         </button>
         <div class="panel-body" id="controls-body">
-          <section class="section">
+          <section class="section grid-only">
+            <h2>Map shows</h2>
+            <div class="radio-list" role="radiogroup" aria-label="Map shows">
+              <label class="check"><input type="radio" name="grid-metric" value="fossil" checked /><span><span class="check-title">Fossil share</span></span></label>
+              <label class="check"><input type="radio" name="grid-metric" value="windsolar" /><span><span class="check-title">Wind and solar share</span></span></label>
+            </div>
+          </section>
+          <section class="section grid-only">
+            <h2 id="grid-legend-title">Fossil share of electricity</h2>
+            <div class="ramp" id="grid-ramp"></div>
+            <div class="ramp-labels" id="grid-ramp-labels"></div>
+            <p class="note" id="grid-legend-note"></p>
+            <p class="note">Yearly data from Ember (CC BY 4.0). Click a country for its mix by source.</p>
+          </section>
+          <section class="section air-only">
             <h2>Pollutant</h2>
             <div class="seg" role="group" aria-label="Pollutant">
               <button type="button" data-pollutant="pm25" aria-pressed="true">PM2.5</button>
               <button type="button" data-pollutant="no2" aria-pressed="false">NO₂</button>
             </div>
           </section>
-          <section class="section">
+          <section class="section air-only">
             <h2>Layers</h2>
             <label class="check">
               <input type="checkbox" id="layer-stations" checked />
@@ -49,7 +66,7 @@
               <span><span class="check-title">Wind at 10 m</span><span class="check-sub" id="wind-sub">Loading…</span></span>
             </label>
           </section>
-          <section class="section">
+          <section class="section air-only">
             <h2 id="legend-title">PM2.5, µg/m³</h2>
             <div class="ramp" id="legend-ramp"></div>
             <div class="ramp-labels" id="legend-labels"></div>
@@ -68,7 +85,11 @@
           <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
         </div>
         <div id="notice" class="notice" role="alert" hidden></div>
-        <div class="timeline">
+        <div class="years grid-only">
+          <span class="years-label">Year</span>
+          <div class="years-buttons" role="group" aria-label="Year" id="years"></div>
+        </div>
+        <div class="timeline air-only">
           <button type="button" class="play" id="play" aria-label="Play the timeline" disabled>
             <svg class="icon-play" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor" /></svg>
             <svg class="icon-pause" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 2h3v10H3zM8 2h3v10H8z" fill="currentColor" /></svg>
@@ -113,15 +134,110 @@
           <a class="link" id="st-link" target="_blank" rel="noopener">See this station on OpenAQ</a>
         </div>
       </aside>
+      <aside class="panel panel-right" id="country" aria-label="Country electricity mix" hidden>
+        <div class="station-head">
+          <div>
+            <div class="eyebrow" id="cm-year"></div>
+            <h1 id="cm-name"></h1>
+          </div>
+          <button type="button" class="icon-btn" id="cm-close" aria-label="Close country panel">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m3 3 8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          </button>
+        </div>
+        <figure class="section">
+          <figcaption class="eyebrow">Share of generation</figcaption>
+          <div class="stack" id="cm-stack" role="img"></div>
+          <div class="stack-legend" id="cm-stack-legend"></div>
+        </figure>
+        <div class="section">
+          <div class="eyebrow">By source</div>
+          <div class="fuel-bars" id="cm-fuels"></div>
+        </div>
+        <dl class="rows">
+          <dt>Total generation</dt><dd id="cm-total"></dd>
+          <dt>Carbon intensity</dt><dd id="cm-intensity"></dd>
+        </dl>
+        <div class="section">
+          <a class="button" id="cm-simulate" href="#sim">Simulate replacing fossil power here</a>
+          <p class="note">Source: Ember yearly electricity data, CC BY 4.0.</p>
+        </div>
+      </aside>
     </div>
+
+    <section class="page" id="view-sim" hidden>
+      <aside class="panel sim-controls" aria-label="Scenario">
+        <div class="section">
+          <h1 class="page-title">Replace fossil power with solar and storage</h1>
+          <label class="field">Start from <select id="sim-preset"></select></label>
+          <label class="field">Country <select id="sim-country"></select></label>
+          <div class="field">
+            <span>Replace</span>
+            <div class="seg seg-3" role="group" aria-label="Fossil source to replace">
+              <button type="button" data-sim-source="grid" aria-pressed="false">Grid</button>
+              <button type="button" data-sim-source="plant" aria-pressed="false">A plant</button>
+              <button type="button" data-sim-source="gensets" aria-pressed="true">Generators</button>
+            </div>
+          </div>
+          <p class="note" id="sim-example"></p>
+        </div>
+        <div class="section sliders" id="sim-source-inputs"></div>
+        <div class="section sliders" id="sim-sizing"></div>
+        <p class="note section">Solar output comes from PVGIS for this place. The battery stores midday surplus for the evening and night, never charges from fossil power, and stays inside its usable charge window.</p>
+      </aside>
+      <div class="sim-main">
+        <section class="section">
+          <div class="sim-head">
+            <h2>A typical day, hour by hour</h2>
+            <label class="field inline">Show <select id="sim-month">
+              <option value="-1">Year average</option>
+              <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+              <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+              <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+              <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+            </select></label>
+          </div>
+          <p class="note" id="sim-place"></p>
+          <div class="legend-row">
+            <span><i style="background:#c98500"></i>Solar used directly</span>
+            <span><i style="background:#199e70"></i>From battery</span>
+            <span><i style="background:#d95926"></i>Fossil still needed</span>
+            <span><i class="dash"></i>Solar output</span>
+          </div>
+          <svg id="sim-day" viewBox="0 0 800 250" width="100%" role="img" aria-label="Average hourly power by source over a day"></svg>
+          <p class="note">Battery charge, with the usable window shaded</p>
+          <svg id="sim-soc" viewBox="0 0 800 70" width="100%" role="img" aria-label="Average battery charge over a day"></svg>
+        </section>
+        <section class="section">
+          <div class="sim-head">
+            <h2>What it avoids each year</h2>
+            <span class="note">Low · central · high</span>
+          </div>
+          <dl class="rows two-col" id="sim-key"></dl>
+          <div class="ranges" id="sim-ranges"></div>
+          <div class="damage">
+            <span class="eyebrow">Health and environment damage avoided</span>
+            <span class="damage-value" id="sim-damage"></span>
+            <span class="note" id="sim-damage-basis"></span>
+          </div>
+          <p class="sim-notes" id="sim-notes"></p>
+        </section>
+        <section class="section">
+          <h2>How it works</h2>
+          <p>Fossil power displaced (hourly dispatch on a PVGIS solar profile) → tonnes avoided per pollutant (EMEP/EEA guidebook; US EPA AP-42 for generators) → damage avoided (EEA values in 2021 euros; Defra 2025 values in pounds for the UK). <a href="#methods">Full method and sources</a></p>
+        </section>
+      </div>
+    </section>
+
+    <section class="page methods" id="view-methods" hidden></section>
 
     <footer class="credits">
       <span class="long">Air quality: <a href="https://openaq.org" target="_blank" rel="noopener">OpenAQ</a> and its <button type="button" class="linklike" data-open-sources>data providers</button></span>
       <span class="long">Forecast: contains modified Copernicus Atmosphere Monitoring Service information 2026. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.</span>
       <span class="long">Wind: NOAA NCEP GFS via NOAA Open Data Dissemination</span>
+      <span class="long">Electricity mix: Ember (CC BY 4.0). Solar: PVGIS © European Communities, 2001-2026. Countries: Natural Earth</span>
       <span class="long">Guideline levels: WHO global air quality guidelines, 2021</span>
       <span class="long">Map: <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>, data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></span>
-      <span class="short">Data: OpenAQ, Copernicus CAMS, NOAA GFS, WHO. Map © OpenStreetMap contributors. <button type="button" class="linklike" data-open-sources>Sources and credits</button></span>
+      <span class="short">Data: OpenAQ, Copernicus CAMS, NOAA GFS, Ember, PVGIS, WHO. Map © OpenStreetMap contributors. <button type="button" class="linklike" data-open-sources>Sources and credits</button></span>
     </footer>
 
     <dialog id="sources" aria-labelledby="sources-title">

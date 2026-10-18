@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildSlots, defaultSlot, formatSlot, nearestModel, seriesShard, type ModelManifest, type StationManifest } from './timeline';
 import { sparkPath } from './sparkline';
 import { bandIndex, bands, NO2_RAMP, POLLUTANTS } from './bands';
+import { unwrapRing } from './views/gridmix';
 
 const stations: StationManifest = {
   parameter: 'pm25', units: 'µg/m³', latest: '2026-10-17T14:00:00Z', coords: 'c', series: 's/{shard}.json', shards: 16,
@@ -69,5 +70,12 @@ describe('NO2 bands', () => {
     expect(POLLUTANTS.no2.edges).toEqual([25, 50, 120]);
     expect(bands(POLLUTANTS.no2.edges, NO2_RAMP).map((b) => b.label)).toEqual(['≤25', '25–50', '50–120', '>120']);
     expect(bandIndex(25, POLLUTANTS.no2.edges)).toBe(0);
+  });
+});
+
+
+describe('date line', () => {
+  it('unwraps rings that cross 180°', () => {
+    expect(unwrapRing([[179, -17], [-179, -17], [-179, -16], [179, -16]])).toEqual([[179, -17], [181, -17], [181, -16], [179, -16]]);
   });
 });

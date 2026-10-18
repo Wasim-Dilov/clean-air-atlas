@@ -1,0 +1,72 @@
+{
+  "description": "Simulator presets and battery defaults. Sizes of solar, battery and generator fleet are example inputs, not data; every other value cites its source.",
+  "battery_defaults": {
+    "round_trip": 0.85,
+    "usable_dod": 0.8,
+    "sources": [
+      {
+        "parameter": "Round-trip efficiency 85%",
+        "text": "NLR (formerly NREL) Annual Technology Baseline 2025, Utility-Scale Battery Storage, section Roundtrip Efficiency (based on Cole et al. 2025). Other sources range from 83% (PNNL Energy Storage Cost and Performance Database v2024, LFP and NMC) to 92% (Lazard LCOE+ 2026, low-cost 4-hour case).",
+        "url": "https://atb.nlr.gov/electricity/2025/utility-scale_battery_storage"
+      },
+      {
+        "parameter": "Usable depth of discharge 80%",
+        "text": "PNNL (2022) Grid Energy Storage Technology Cost and Performance Assessment, PNNL-33283: baseline depth of discharge 80% for LFP and NMC (section 1, p. 4). Lazard LCOE+ 2026 models 90%.",
+        "url": "https://www.energy.gov/sites/default/files/2022-09/2022%20Grid%20Energy%20Storage%20Technology%20Cost%20and%20Performance%20Assessment.pdf"
+      }
+    ]
+  },
+  "presets": {
+    "lagos": {
+      "label": "Lagos: diesel generators",
+      "country": "NGA",
+      "pv_site": "lagos",
+      "source": { "type": "gensets", "count": 1000, "kw_each": 3.75, "start_hour": 6, "end_hour": 24 },
+      "solar_mwp": 10,
+      "battery": { "power_mw": 4, "energy_mwh": 20 },
+      "example_note": "Example scenario: 1,000 small commercial generators. No count of generators in Lagos is published, so the number of generators and the solar and battery sizes are example inputs you can change.",
+      "sources": [
+        {
+          "text": "Average commercial generator size 7.5 kVA, from a consumer survey in Aba: World Bank (2014) Diesel Power Generation: Inventories and Black Carbon Emissions in Nigeria, p. 17.",
+          "url": "https://documents1.worldbank.org/curated/en/853381501178909924/pdf/117772-WP-PUBLIC-52p-Report-DG-Set-Study-Nigeria.pdf"
+        },
+        {
+          "text": "Load factor 50% where generators run full time (40% for back-up use): World Bank (2014), footnote 6, p. 17. 7.5 kVA × 50% = 3.75 kW, taking kVA as kW. IFC (2019) notes the kVA rating is typically 1 to 1.5 times the kW load, so real output may be up to a third lower.",
+          "url": "https://documents1.worldbank.org/curated/en/853381501178909924/pdf/117772-WP-PUBLIC-52p-Report-DG-Set-Study-Nigeria.pdf"
+        },
+        {
+          "text": "Running 06:00 to 24:00, 18 hours a day: some Nigerian generators run 15 to 18 hours a day, World Bank (2014), p. 1.",
+          "url": "https://documents1.worldbank.org/curated/en/853381501178909924/pdf/117772-WP-PUBLIC-52p-Report-DG-Set-Study-Nigeria.pdf"
+        },
+        {
+          "text": "About half of Lagos energy demand is met by diesel and petrol generators: World Bank (2020) The Cost of Air Pollution in Lagos, chapter 3, p. 11.",
+          "url": "https://documents1.worldbank.org/curated/en/980031575616020127/pdf/The-Cost-of-Air-Pollution-in-Lagos.pdf"
+        },
+        {
+          "text": "Solar profile: PVGIS 5.3 hourly output for Ikeja, Lagos (6.60 N, 3.35 E), year 2023, in West Africa Time (UTC+1).",
+          "url": "https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_en"
+        },
+        {
+          "text": "Generator emission factors: US EPA AP-42 section 3.3, with the range from World Bank (2014) Table 13. Damage costs: no Nigerian values exist, so euros are a rough transfer from the EEA European average."
+        }
+      ]
+    },
+    "grid": {
+      "label": "Grid average: pick a country",
+      "country": "DEU",
+      "source": { "type": "grid", "mw": 10, "start_hour": 0, "end_hour": 24 },
+      "solar_mwp": 30,
+      "battery": { "power_mw": 10, "energy_mwh": 40 },
+      "example_note": "Example scenario: a site drawing a steady 10 MW from the grid. Pick a country; its grid mix is Ember's latest year.",
+      "sources": [
+        {
+          "text": "Grid mix: Ember yearly electricity data, the country's latest year (CC BY 4.0).",
+          "url": "https://ember-energy.org/data/yearly-electricity-data/"
+        },
+        {
+          "text": "Solar: PVGIS 5.3, a typical day for each month at one point inside the country (a rough national profile)."
+        }
+      ]
+    }
+  }
+}
