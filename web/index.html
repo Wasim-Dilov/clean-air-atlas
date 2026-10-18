@@ -55,7 +55,7 @@
             <h2>Layers</h2>
             <label class="check">
               <input type="checkbox" id="layer-stations" checked />
-              <span><span class="check-title">Measured stations</span><span class="check-sub">OpenAQ, hourly</span></span>
+              <span><span class="check-title">Station dots</span><span class="check-sub">OpenAQ, hourly. With station clouds on, dots show when you zoom in.</span></span>
             </label>
             <div class="shading">
               <span class="check-title">Shading</span>
@@ -76,7 +76,8 @@
             <div class="ramp" id="legend-ramp"></div>
             <div class="ramp-labels" id="legend-labels"></div>
             <p class="note">Bands follow the WHO 2021 24-hour levels. The first band meets the guideline. Hourly readings are compared with a 24-hour level, so treat the colour as a guide.</p>
-            <p class="note">Dots are measurements. Station shading is smoothed from stations within about 200 km; model shading is a CAMS estimate shown only above the guideline.</p>
+            <p class="note">Clouds smooth nearby station readings to show the pattern. They are a display aid, not measurements between stations. Point at a cloud or zoom in to see its stations.</p>
+            <p class="note">The worst band is black with a light outline. Model shading is a CAMS estimate, shown only above the guideline.</p>
             <p class="note" id="station-count"></p>
           </section>
         </div>
@@ -90,6 +91,7 @@
           <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
         </div>
         <div id="notice" class="notice" role="alert" hidden></div>
+        <div id="tip" class="tip" aria-hidden="true" hidden></div>
         <div class="years grid-only">
           <span class="years-label">Year</span>
           <div class="years-buttons" role="group" aria-label="Year" id="years"></div>

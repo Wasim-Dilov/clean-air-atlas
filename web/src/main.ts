@@ -1,10 +1,10 @@
-import { Map as MapLibreMap, setWorkerUrl, type GeoJSONSource, type ImageSource, type MapLayerMouseEvent } from 'maplibre-gl';
+import { Map as MapLibreMap, setWorkerUrl, type GeoJSONSource, type ImageSource, type MapGeoJSONFeature, type MapMouseEvent } from 'maplibre-gl';
 // Let Vite bundle MapLibre's worker so its URL survives the production build.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 
-import { bands, POLLUTANTS, timesGuideline, type Pollutant } from './bands';
+import { bandIndex, bands, needsRim, POLLUTANTS, RIM_COLOR, timesGuideline, type Pollutant } from './bands';
 import { loadBaseStyle } from './basemap';
 import { sparkPath } from './sparkline';
 import {
@@ -13,7 +13,7 @@ import {
 } from './stations';
 import { buildSlots, defaultSlot, formatSlot, seriesShard, type ModelManifest, type Slot, type StationManifest } from './timeline';
 import { loadWind, speedAndFrom, WindLayer, type WindField } from './wind';
-import { HazeLayer } from './haze';
+import { HazeLayer, imageOutline, RimLayer } from './haze';
 import { currentView, setupRouter } from './views/router';
 import { firstSymbolLayer } from './views/gridmix';
 
@@ -34,8 +34,8 @@ function load<T>(path: string): Promise<T> {
 
 type Shading = 'stations' | 'model' | 'off';
 
-// Zone alphas per WHO band: the clean band is visible but faint, worse bands stronger.
-const HAZE_ALPHAS: Record<Pollutant, number[]> = { pm25: [80, 115, 140, 160, 180, 195], no2: [80, 135, 170, 195] };
+// Clouds are near-opaque (92 %) in every band, so their colours and lightness order match the legend.
+const CLOUD_ALPHA = 235;
 
 interface PollutantData {
   latest: StationFrame | null;
@@ -52,10 +52,12 @@ const state = {
   layers: { stations: true, wind: true },
   shading: 'stations' as Shading,
   haze: null as HazeLayer | null,
+  modelRim: null as RimLayer | null,
   hazeKey: '',
   wind: null as WindField | null,
   windLayer: null as WindLayer | null,
   selected: null as number | null,
+  hover: null as number | null,
   playing: 0 as number,
   airOn: currentView() === 'air',
 };
@@ -78,6 +80,7 @@ function renderLegend(): void {
   for (const b of bs) {
     const sw = document.createElement('span');
     sw.style.background = b.color;
+    sw.classList.toggle('rim', needsRim(b.index, spec.ramp));
     sw.title = `${b.label} µg/m³`;
     ramp.append(sw);
     const lab = document.createElement('span');
@@ -185,26 +188,46 @@ async function main(): Promise<void> {
 
     if (model?.frames.length) {
       map.addSource('model', { type: 'image', url: DATA + model.frames[0].file, coordinates: model.bounds });
-      map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstSymbolLayer(map));
+      map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstSymbolLayer(map));
+      // Model frames cover the whole Web Mercator world (pipeline/cams.py), so pixels map like the station clouds.
+      state.modelRim = new RimLayer(map, 'model-rim', firstSymbolLayer(map));
     }
     state.haze = new HazeLayer(map, firstSymbolLayer(map));
     map.addSource('stations', { type: 'geojson', data: EMPTY as never });
+    // One layer draws the dots and serves hit tests at every zoom (fully transparent circles still
+    // answer queries), so a click on a cloud can find the nearest station.
     map.addLayer({
       id: 'stations',
       type: 'circle',
       source: 'stations',
       paint: {
         'circle-color': colorExpression() as never,
-        'circle-radius': dotRadius(true) as never,
-        'circle-stroke-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#edf1f7', '#090d15'],
-        'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 0.8],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, ['+', 2, ['*', ['get', 'b'], 0.35]], 6, ['+', 4, ['*', ['get', 'b'], 0.6]], 12, 9],
+        ...strokePaint(),
+        ...dotOpacity(true, true),
+      } as never,
+    });
+    // The hovered or selected station: a light ring around a dark ring, so it shows on any cloud colour.
+    map.addLayer({
+      id: 'station-focus-ring', type: 'circle', source: 'stations', filter: focusFilter() as never,
+      paint: { 'circle-color': '#edf1f7', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 8.5, 12, 11.5] },
+    });
+    map.addLayer({
+      id: 'station-focus', type: 'circle', source: 'stations', filter: focusFilter() as never,
+      paint: {
+        'circle-color': colorExpression() as never,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 5, 12, 8],
+        'circle-stroke-color': '#090d15',
+        'circle-stroke-width': 2,
       },
     });
 
+    const setFocus = () => {
+      for (const id of ['station-focus-ring', 'station-focus']) map.setFilter(id, focusFilter() as never);
+    };
     const select = (id: number | null) => {
-      if (state.selected !== null) map.setFeatureState({ source: 'stations', id: state.selected }, { selected: false });
       state.selected = id;
-      if (id !== null) map.setFeatureState({ source: 'stations', id }, { selected: true });
+      setFocus();
     };
 
     let drawSeq = 0;
@@ -219,11 +242,10 @@ async function main(): Promise<void> {
       if (seq !== drawSeq) return; // a newer draw started
       (map.getSource('stations') as GeoJSONSource).setData(fc as never);
       map.setPaintProperty('stations', 'circle-color', colorExpression() as never);
-      map.setLayoutProperty('stations', 'visibility', state.airOn && state.layers.stations ? 'visible' : 'none');
-      if (state.selected !== null && fc.features.some((f) => f.id === state.selected)) {
-        map.setFeatureState({ source: 'stations', id: state.selected }, { selected: true });
-      }
-      // Shading: station zones by default; the model where chosen, and in forecast hours with no stations.
+      map.setPaintProperty('station-focus', 'circle-color', colorExpression() as never);
+      for (const [k, v] of Object.entries(strokePaint())) map.setPaintProperty('stations', k as never, v as never);
+      for (const id of ['stations', 'station-focus-ring', 'station-focus']) map.setLayoutProperty(id, 'visibility', state.airOn ? 'visible' : 'none');
+      // Shading: station clouds by default; the model where chosen, and in forecast hours with no stations.
       const modelOk = state.pollutant === 'pm25' && !!slot?.modelFile && !!map.getLayer('model');
       let shading = state.shading;
       if (shading === 'model' && !modelOk) shading = 'stations';
@@ -231,7 +253,17 @@ async function main(): Promise<void> {
       if (map.getLayer('model')) {
         const show = state.airOn && shading === 'model' && modelOk;
         map.setLayoutProperty('model', 'visibility', show ? 'visible' : 'none');
-        if (show) (map.getSource('model') as ImageSource).updateImage({ url: DATA + slot!.modelFile! });
+        state.modelRim?.setVisible(show);
+        if (show) {
+          const url = DATA + slot!.modelFile!;
+          (map.getSource('model') as ImageSource).updateImage({ url });
+          const top = POLLUTANTS.pm25.ramp[POLLUTANTS.pm25.ramp.length - 1];
+          void imageOutline(url, top)
+            .then(({ lines, size }) => {
+              if (state.slots[state.slot]?.modelFile === slot!.modelFile) state.modelRim?.set(lines, size);
+            })
+            .catch((err) => console.warn('model outline', err));
+        }
       }
       if (state.haze) {
         const show = state.airOn && shading === 'stations' && fc.features.length > 0;
@@ -240,12 +272,13 @@ async function main(): Promise<void> {
           const spec = POLLUTANTS[state.pollutant];
           state.haze.update(
             fc.features.map((f) => ({ lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], v: f.properties.v })),
-            { edges: spec.edges, ramp: spec.ramp, alphas: HAZE_ALPHAS[state.pollutant] },
+            { edges: spec.edges, ramp: spec.ramp, alphas: spec.ramp.map(() => CLOUD_ALPHA) },
           );
           state.hazeKey = key;
         }
         state.haze.setVisible(show);
-        map.setPaintProperty('stations', 'circle-radius', dotRadius(!show) as never);
+        // With station clouds on, dots appear only when zoomed in; otherwise they carry the colour at every zoom.
+        for (const [k, v] of Object.entries(dotOpacity(show, state.layers.stations))) map.setPaintProperty('stations', k as never, v as never);
       }
       if (state.windLayer && state.wind) {
         const near = !slot || Math.abs(slot.t - Date.parse(state.wind.meta.valid)) <= 3 * 3_600_000;
@@ -320,16 +353,56 @@ async function main(): Promise<void> {
       }),
     );
 
-    map.on('click', 'stations', (e: MapLayerMouseEvent) => {
-      const f = e.features?.[0];
+    // Clicks and hover pick the nearest station within a few pixels, so a cloud opens its station.
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const nearest = (pt: { x: number; y: number }, r: number): MapGeoJSONFeature | null => {
+      if (!map.getLayer('stations') || !state.airOn) return null;
+      let best: MapGeoJSONFeature | null = null;
+      let bestD = r * r;
+      for (const f of map.queryRenderedFeatures([[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]], { layers: ['stations'] })) {
+        const p = map.project((f.geometry as unknown as { coordinates: [number, number] }).coordinates);
+        const dd = (p.x - pt.x) ** 2 + (p.y - pt.y) ** 2;
+        if (dd <= bestD) {
+          best = f;
+          bestD = dd;
+        }
+      }
+      return best;
+    };
+    map.on('click', (e: MapMouseEvent) => {
+      const f = nearest(e.point, coarse ? 24 : 16);
       if (!f) return;
       const props = f.properties as unknown as StationProps;
       const coords = (f.geometry as unknown as { coordinates: [number, number] }).coordinates;
+      hideTip();
       select(props.id);
       void showStation(props, coords);
     });
-    map.on('mouseenter', 'stations', () => (map.getCanvas().style.cursor = 'pointer'));
-    map.on('mouseleave', 'stations', () => (map.getCanvas().style.cursor = ''));
+    const tip = $('tip');
+    const hideTip = () => {
+      tip.hidden = true;
+      if (state.hover !== null) {
+        state.hover = null;
+        setFocus();
+      }
+    };
+    map.on('mousemove', (e: MapMouseEvent) => {
+      if (coarse) return;
+      const f = nearest(e.point, 16);
+      map.getCanvas().style.cursor = f ? 'pointer' : '';
+      if (!f) return hideTip();
+      const props = f.properties as unknown as StationProps;
+      if (state.hover !== props.id) {
+        state.hover = props.id;
+        setFocus();
+      }
+      const meta = state.data[state.pollutant]?.index?.stations[String(props.id)];
+      tip.textContent = `${props.v.toFixed(props.v < 10 ? 1 : 0)} µg/m³${meta?.[0] ? ` · ${meta[0]}` : ''}`;
+      tip.style.transform = `translate(${Math.round(e.point.x + 14)}px, ${Math.round(e.point.y - 34)}px)`;
+      tip.hidden = false;
+    });
+    map.getCanvas().addEventListener('mouseleave', hideTip);
+    map.on('movestart', hideTip);
     $('st-close').addEventListener('click', () => {
       $('station').hidden = true;
       select(null);
@@ -365,10 +438,24 @@ function windLabel(field: WindField): string {
   return `NOAA GFS, valid ${t} UTC`;
 }
 
-/** Dot size by zoom and band; smaller while station zones carry the colour. */
-function dotRadius(full: boolean): unknown[] {
-  const k = full ? 1 : 0.6;
-  return ['interpolate', ['linear'], ['zoom'], 1, ['*', k, ['+', 2, ['*', ['get', 'b'], 0.35]]], 6, ['*', k, ['+', 4, ['*', ['get', 'b'], 0.6]]], 12, 9 * k];
+// With station clouds on, coloured dots fade in between these zooms (about country to region scale).
+const DOTS_FROM = 6.5;
+const DOTS_FULL = 7.5;
+
+function dotOpacity(cloudsOn: boolean, dotsOn: boolean): Record<string, unknown> {
+  const o = !dotsOn ? 0 : cloudsOn ? ['interpolate', ['linear'], ['zoom'], DOTS_FROM, 0, DOTS_FULL, 1] : 1;
+  return { 'circle-opacity': o, 'circle-stroke-opacity': o };
+}
+
+/** Dark ring on dots, except the near-black top band, which gets the light outline. */
+function strokePaint(): Record<string, unknown> {
+  const top = ['==', ['get', 'b'], POLLUTANTS[state.pollutant].ramp.length - 1];
+  return { 'circle-stroke-color': ['case', top, RIM_COLOR, '#090d15'], 'circle-stroke-width': ['case', top, 1.2, 0.8] };
+}
+
+function focusFilter(): unknown[] {
+  const ids = [state.hover, state.selected].filter((id): id is number => id !== null);
+  return ['in', ['id'], ['literal', ids]];
 }
 
 function colorExpression(): unknown[] {
@@ -388,6 +475,7 @@ async function showStation(p: StationProps, coords: [number, number]): Promise<v
   $('st-value').textContent = p.v.toFixed(p.v < 10 ? 1 : 0);
   $('st-unit').textContent = `µg/m³ ${spec.label}`;
   $('st-swatch').style.background = bands(spec.edges, spec.ramp)[p.b].color;
+  $('st-swatch').classList.toggle('rim', needsRim(p.b, spec.ramp));
   const x = timesGuideline(p.v, spec.guideline);
   $('st-who-text').textContent = x <= 1 ? 'Within the WHO 24-hour guideline level' : `${x.toFixed(1)} times the WHO 24-hour guideline level`;
   const slot = state.slots[state.slot];
@@ -411,27 +499,48 @@ async function showStation(p: StationProps, coords: [number, number]): Promise<v
   ).catch(() => null);
   const values = series?.series[String(p.id)];
   if (!values || state.selected !== p.id) return;
-  drawSpark(values, spec.guideline);
+  drawSpark(values, spec.guideline, spec.edges, spec.ramp);
   fig.hidden = false;
 }
 
-function drawSpark(values: (number | null)[], guideline: number): void {
+function drawSpark(values: (number | null)[], guideline: number, edges: readonly number[], ramp: readonly string[]): void {
   const svg = $('st-spark-svg') as unknown as SVGSVGElement;
   const w = 290;
   const h = 84;
   const s = sparkPath(values, w, h, guideline);
   svg.replaceChildren();
-  const mk = (tag: string, attrs: Record<string, string | number>) => {
+  const mk = (tag: string, attrs: Record<string, string | number>, parent: Element = svg) => {
     const el = document.createElementNS(SVG, tag);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-    svg.append(el);
+    parent.append(el);
     return el;
   };
+  // The line takes the band colour of its height: hard colour stops at each WHO edge.
+  const defs = mk('defs', {});
+  const gradient = (id: string, colours: readonly string[]) => {
+    const g = mk('linearGradient', { id, gradientUnits: 'userSpaceOnUse', x1: 0, x2: 0, y1: h, y2: 0 }, defs);
+    colours.forEach((c, i) => {
+      const from = i === 0 ? 0 : (h - s.y(edges[i - 1])) / h;
+      const to = i === edges.length ? 1 : (h - s.y(edges[i])) / h;
+      const clamp = (v: number) => Math.min(1, Math.max(0, v)).toFixed(4);
+      mk('stop', { offset: clamp(from), 'stop-color': c }, g);
+      mk('stop', { offset: clamp(to), 'stop-color': c }, g);
+    });
+  };
+  const top = ramp.length - 1;
+  gradient('spark-line', ramp);
+  // Under the near-black top band, a light outline so the line stays visible on the dark panel.
+  gradient('spark-rim', ramp.map((_, i) => (i === top ? RIM_COLOR : 'transparent')));
   const gy = s.y(guideline);
   mk('line', { x1: 0, x2: w, y1: gy, y2: gy, stroke: '#8792a5', 'stroke-dasharray': '3 3', 'stroke-width': 1 });
   mk('text', { x: w, y: gy - 4, fill: '#aab4c4', 'font-size': 10, 'text-anchor': 'end' }).textContent = 'WHO 24-h guideline';
-  mk('path', { d: s.d, fill: 'none', stroke: '#ff936d', 'stroke-width': 2, 'stroke-linejoin': 'round' });
-  if (s.last) mk('circle', { cx: s.last.x, cy: s.last.y, r: 4, fill: '#ff936d', stroke: '#0e131d', 'stroke-width': 2 });
+  mk('path', { d: s.d, fill: 'none', stroke: 'url(#spark-rim)', 'stroke-width': 4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  mk('path', { d: s.d, fill: 'none', stroke: 'url(#spark-line)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  const lastV = [...values].reverse().find((v): v is number => v !== null && Number.isFinite(v));
+  if (s.last && lastV !== undefined) {
+    const b = bandIndex(lastV, edges);
+    mk('circle', { cx: s.last.x, cy: s.last.y, r: 4, fill: ramp[b], stroke: b === top ? RIM_COLOR : '#0e131d', 'stroke-width': b === top ? 1.5 : 2 });
+  }
 }
 
 function setupLegendToggle(): void {

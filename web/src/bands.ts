@@ -1,12 +1,21 @@
 import who from '../../data/static/who_guidelines.json';
 
 /**
- * Ordinal ramps (one hue, lightness rising with concentration) for a dark map.
- * Checked with the dataviz palette validator against the #090d15 map surface:
- * monotone lightness, visible step gaps, darkest step above 2:1 contrast.
+ * One scale for every air layer: light green (meets the WHO guideline) through yellow, orange,
+ * red and dark red to near-black (above the loosest interim target). Lightness falls at every
+ * step, so the order still reads without telling green from red. Checked with the dataviz
+ * palette validator on the #090d15 map surface, as swatches and as clouds blended at 92 %:
+ * lightness monotone, every step at least 0.06 apart, all pairs at least ΔE 15 apart in normal
+ * vision and ΔE 9.6 apart under simulated protanopia and deuteranopia.
+ *
+ * Near-black does not stand out from the dark map on its own, so it always carries a light
+ * outline (RIM_COLOR): around its clouds, on its dots and on its legend swatch.
  */
-export const PM25_RAMP = ['#a83902', '#d24903', '#f5642b', '#ff936d', '#ffc0ab', '#fee5dc'] as const;
-export const NO2_RAMP = ['#a83902', '#f5642b', '#ffc0ab', '#fee5dc'] as const;
+export const PM25_RAMP = ['#9cf1b6', '#e9bd01', '#fe6e1a', '#cf2338', '#850122', '#2e0f13'] as const;
+// NO₂ reuses PM2.5 colours by WHO level. Its edges are the guideline, IT-2 and IT-1, so its second
+// band spans PM2.5 bands 1 to 3 and takes the middle one; the last two match PM2.5 bands 4 and 5.
+export const NO2_RAMP = [PM25_RAMP[0], PM25_RAMP[2], PM25_RAMP[4], PM25_RAMP[5]] as const;
+export const RIM_COLOR = '#aab4c4';
 
 export type Pollutant = 'pm25' | 'no2';
 
@@ -60,6 +69,11 @@ export function bands(edges: readonly number[] = PM25_EDGES, ramp: readonly stri
     const label = min === null ? `≤${fmt(max!)}` : max === null ? `>${fmt(min)}` : `${fmt(min)}–${fmt(max)}`;
     return { index: i, min, max, color, label };
   });
+}
+
+/** The top band is near-black and needs the light outline to show on the dark map. */
+export function needsRim(band: number, ramp: readonly string[]): boolean {
+  return band === ramp.length - 1;
 }
 
 /** How many times the WHO 24-hour guideline a value is (indicative for hourly values). */

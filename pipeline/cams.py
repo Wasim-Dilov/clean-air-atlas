@@ -30,9 +30,11 @@ KEEP_PAST = timedelta(hours=72)
 IMAGE_SIZE = 512
 
 # Must match PM25_RAMP in web/src/bands.ts (a test checks this).
-PM25_RAMP = ["#a83902", "#d24903", "#f5642b", "#ff936d", "#ffc0ab", "#fee5dc"]
-# The band that meets the WHO guideline stays clear, so the haze shows only exceedance.
-ALPHAS = [0, 95, 125, 150, 175, 195]
+PM25_RAMP = ["#9cf1b6", "#e9bd01", "#fe6e1a", "#cf2338", "#850122", "#2e0f13"]
+# The band that meets the WHO guideline stays clear, so the model shows only exceedance.
+# Above it every band is near-opaque (92 %), so colours and their lightness order read as
+# in the legend; the web map outlines the near-black top band.
+ALPHAS = [0, 235, 235, 235, 235, 235]
 
 
 def latest_run(now: datetime) -> datetime:
