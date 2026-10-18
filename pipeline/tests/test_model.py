@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pipeline import ads, cams, net, openaq, png, raster, static
+from pipeline import ads, cams, grib, net, openaq, png, raster, static
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -49,10 +49,18 @@ def test_png_round_trip():
     np.testing.assert_array_equal(png.decode_rgba(png.encode_rgba(img)), img)
 
 
-def test_pipeline_ramp_matches_web_ramp():
+@pytest.mark.parametrize("name,ramp", [("PM25_RAMP", cams.PM25_RAMP), ("NO2_RAMP", cams.NO2_RAMP)])
+def test_pipeline_ramp_matches_web_ramp(name, ramp):
     ts = (ROOT / "web/src/bands.ts").read_text()
-    web = re.search(r"PM25_RAMP = \[([^\]]+)\]", ts).group(1)
-    assert re.findall(r"#[0-9a-f]{6}", web) == cams.PM25_RAMP
+    web = re.search(rf"{name} = \[([^\]]+)\]", ts).group(1)
+    assert re.findall(r"#[0-9a-f]{6}", web) == ramp
+
+
+@pytest.mark.parametrize("parameter", cams.PARAMETERS)
+def test_one_colour_and_alpha_per_who_band(parameter):
+    ramp, alphas = cams.STYLE[parameter]
+    assert len(ramp) == len(alphas) == len(static.who_edges(parameter)) + 1
+    assert alphas[0] == 0  # meeting the guideline stays clear
 
 
 class TestCamsRun:
@@ -72,29 +80,43 @@ class TestCamsRun:
         assert req["date"] == ["2026-10-17/2026-10-17"] and req["time"] == ["12:00"]
         assert req["leadtime_hour"][0] == "0" and req["leadtime_hour"][-1] == "120"
         assert req["data_format"] == "grib"
+        assert "model_level" not in req
+
+    def test_no2_requests_share_run_and_leads(self):
+        run = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
+        no2 = cams.build_request(run, cams.NO2_VARIABLES, cams.NO2_MODEL_LEVEL)
+        met = cams.build_request(run, cams.MET_VARIABLES)
+        assert no2["variable"] == ["nitrogen_dioxide"] and no2["model_level"] == ["137"]
+        assert met["variable"] == ["surface_pressure", "2m_temperature"] and "model_level" not in met
+        for key in ("date", "time", "leadtime_hour", "type", "data_format"):
+            assert no2[key] == met[key]
 
 
 class FakeADS:
-    def __init__(self, data):
-        self.data, self.calls = data, []
+    """Answers each request with the bytes registered for its first variable."""
+
+    def __init__(self, responses):
+        self.responses, self.calls = responses, []
 
     def retrieve(self, dataset, request):
         self.calls.append((dataset, request))
-        return self.data
+        return self.responses[request["variable"][0]]
 
 
-def make_grib(path, run, steps, value_kg_m3):
+def make_grib(path, run, steps, value, keys=None, append=False):
     eccodes = pytest.importorskip("eccodes")
-    with open(path, "wb") as fh:
+    with open(path, "ab" if append else "wb") as fh:
         for step in steps:
             gid = eccodes.codes_grib_new_from_samples("regular_ll_sfc_grib2")
+            if keys:
+                eccodes.codes_set_key_vals(gid, keys)
             eccodes.codes_set_key_vals(gid, {
                 "Ni": 4, "Nj": 3, "latitudeOfFirstGridPointInDegrees": 60, "latitudeOfLastGridPointInDegrees": -60,
                 "longitudeOfFirstGridPointInDegrees": 0, "longitudeOfLastGridPointInDegrees": 270,
                 "iDirectionIncrementInDegrees": 90, "jDirectionIncrementInDegrees": 60,
                 "dataDate": int(run.strftime("%Y%m%d")), "dataTime": run.hour * 100, "step": step,
             })
-            eccodes.codes_set_values(gid, np.full(12, value_kg_m3))
+            eccodes.codes_set_values(gid, np.full(12, value))
             eccodes.codes_write(gid, fh)
             eccodes.codes_release(gid)
 
@@ -106,7 +128,7 @@ class TestCamsUpdate:
         run = cams.latest_run(self.NOW)
         grib_path = tmp_path / "in.grib"
         make_grib(grib_path, run, [0, 3, 6], 40e-9)  # 40 µg/m³
-        client = FakeADS(grib_path.read_bytes())
+        client = FakeADS({"particulate_matter_2.5um": grib_path.read_bytes()})
         out = tmp_path / "out"
         manifest = cams.update(out, self.NOW, client)
         assert len(client.calls) == 1
@@ -115,25 +137,131 @@ class TestCamsUpdate:
         img = png.decode_rgba((out / manifest["frames"][0]["file"]).read_bytes())
         assert img.shape == (cams.IMAGE_SIZE, cams.IMAGE_SIZE, 4)
         band = int(np.searchsorted(static.who_edges("pm25"), 40.0, side="left"))
-        assert img[cams.IMAGE_SIZE // 2, 10].tolist() == [*raster.hex_to_rgb(cams.PM25_RAMP[band]), cams.ALPHAS[band]]
+        assert img[cams.IMAGE_SIZE // 2, 10].tolist() == [*raster.hex_to_rgb(cams.PM25_RAMP[band]), cams.PM25_ALPHAS[band]]
 
         cams.update(out, self.NOW, client)
         assert len(client.calls) == 1  # same run already present: no new ADS request
 
-    def test_without_key_keeps_frames_and_prunes_old(self, tmp_path):
+    @pytest.mark.parametrize("parameter", cams.PARAMETERS)
+    def test_without_key_keeps_frames_and_prunes_old(self, tmp_path, parameter):
         out = tmp_path
-        old = out / "model/pm25/20261010T00.png"
+        base = f"model/{parameter}"
+        old = out / base / "20261010T00.png"
         old.parent.mkdir(parents=True)
         old.write_bytes(b"x")
-        recent = out / "model/pm25/20261017T03.png"
+        recent = out / base / "20261017T03.png"
         recent.write_bytes(b"y")
-        (out / "model/pm25/manifest.json").write_text(json.dumps({"frames": [
-            {"valid": "2026-10-10T00:00:00Z", "run": "2026-10-09T12:00:00Z", "lead": 12, "file": "model/pm25/20261010T00.png"},
-            {"valid": "2026-10-17T03:00:00Z", "run": "2026-10-16T12:00:00Z", "lead": 15, "file": "model/pm25/20261017T03.png"},
+        (out / base / "manifest.json").write_text(json.dumps({"frames": [
+            {"valid": "2026-10-10T00:00:00Z", "run": "2026-10-09T12:00:00Z", "lead": 12, "file": f"{base}/20261010T00.png"},
+            {"valid": "2026-10-17T03:00:00Z", "run": "2026-10-16T12:00:00Z", "lead": 15, "file": f"{base}/20261017T03.png"},
         ]}))
-        manifest = cams.update(out, self.NOW, None)
+        manifest = cams.update(out, self.NOW, None, parameter)
+        assert manifest["parameter"] == parameter
         assert [f["valid"] for f in manifest["frames"]] == ["2026-10-17T03:00:00Z"]
         assert not old.exists() and recent.exists()
+
+
+SP_PA, T2M_K = 100_000.0, 290.0
+NO2_KG_KG = 50e-9  # about 60 µg/m³ at that pressure and temperature: WHO band 2 (50 to 120)
+
+
+def no2_responses(tmp_path, run, no2_steps, met_steps, sp=SP_PA):
+    no2_path, met_path = tmp_path / "no2.grib", tmp_path / "met.grib"
+    make_grib(no2_path, run, no2_steps, NO2_KG_KG, {"shortName": "no2", "typeOfLevel": "hybrid", "level": 137})
+    make_grib(met_path, run, met_steps, sp, {"shortName": "sp"})
+    make_grib(met_path, run, met_steps, T2M_K, {"shortName": "2t"}, append=True)
+    return {"nitrogen_dioxide": no2_path.read_bytes(), "surface_pressure": met_path.read_bytes()}
+
+
+def field(short_name, value, step=0, shape=(3, 4)):
+    run = datetime(2026, 10, 17, tzinfo=timezone.utc)
+    return grib.Field(short_name, run, step, None, raster.Grid(np.full(shape, value), 60, 60, 0, 90))
+
+
+class TestNO2Model:
+    NOW = datetime(2026, 10, 17, 11, 0, tzinfo=timezone.utc)
+
+    def test_gas_constant_is_sourced(self):
+        entry = static.load("unit_conversions.json")["dry_air_gas_constant"]
+        assert entry["value"] == 287.0597 and entry["units"] == "J kg-1 K-1"
+        assert "IFS Documentation" in entry["source"] and entry["year"] == 2021 and entry["url"].startswith("https://www.ecmwf.int/")
+
+    def test_air_density_matches_standard_sea_level(self):
+        # 101325 Pa and 288.15 K give the standard-atmosphere sea-level density, 1.225 kg/m³.
+        assert cams.air_density(np.array(101325.0), np.array(288.15)) == pytest.approx(1.225, abs=1e-3)
+
+    def test_mixing_ratio_to_ugm3(self):
+        frames = cams.no2_ugm3([field("no2", NO2_KG_KG)], [field("sp", SP_PA), field("2t", T2M_K)])
+        expected = NO2_KG_KG * SP_PA / (static.conversion("dry_air_gas_constant") * T2M_K) * 1e9
+        assert expected == pytest.approx(60.06, abs=0.01)
+        np.testing.assert_allclose(frames[0][1], expected)
+
+    def test_skips_steps_without_surface_fields(self):
+        no2 = [field("no2", NO2_KG_KG, step) for step in (0, 3)]
+        frames = cams.no2_ugm3(no2, [field("sp", SP_PA, 0), field("2t", T2M_K, 0), field("sp", SP_PA, 3)])
+        assert [f.step_h for f, _ in frames] == [0]
+
+    def test_no_matching_step_fails_loudly(self):
+        with pytest.raises(RuntimeError, match="no NO2 step"):
+            cams.no2_ugm3([field("no2", NO2_KG_KG, 3)], [field("sp", SP_PA, 0), field("2t", T2M_K, 0)])
+
+    def test_rejects_pressure_in_wrong_units(self):
+        with pytest.raises(RuntimeError, match="implausible air density"):
+            cams.no2_ugm3([field("no2", NO2_KG_KG)], [field("sp", 1000.0), field("2t", T2M_K)])  # hPa, not Pa
+
+    def test_rejects_mismatched_grids(self):
+        with pytest.raises(RuntimeError, match="different grids"):
+            cams.no2_ugm3([field("no2", NO2_KG_KG)], [field("sp", SP_PA, shape=(2, 4)), field("2t", T2M_K)])
+
+    def test_renders_frames_from_two_requests(self, tmp_path):
+        run = cams.latest_run(self.NOW)
+        client = FakeADS(no2_responses(tmp_path, run, [0, 3, 6], [0, 3, 6]))
+        out = tmp_path / "out"
+        manifest = cams.update(out, self.NOW, client, "no2")
+        assert [c[1]["variable"][0] for c in client.calls] == ["nitrogen_dioxide", "surface_pressure"]
+        assert client.calls[0][1]["model_level"] == ["137"]
+        assert {c[1]["time"][0] for c in client.calls} == {"00:00"}
+        assert manifest["parameter"] == "no2" and "Approximate" in manifest["note"]
+        assert [f["lead"] for f in manifest["frames"]] == [0, 3, 6]
+        assert all(f["file"].startswith("model/no2/") for f in manifest["frames"])
+        assert json.loads((out / "model/no2/manifest.json").read_text())["latest_run"] == "2026-10-17T00:00:00Z"
+        img = png.decode_rgba((out / manifest["frames"][0]["file"]).read_bytes())
+        band = int(np.searchsorted(static.who_edges("no2"), 60.06, side="left"))
+        assert band == 2
+        assert img[cams.IMAGE_SIZE // 2, 10].tolist() == [*raster.hex_to_rgb(cams.NO2_RAMP[band]), cams.NO2_ALPHAS[band]]
+
+        cams.update(out, self.NOW, client, "no2")
+        assert len(client.calls) == 2  # same run already present: no new ADS request
+
+    def test_one_layer_failing_does_not_block_the_other(self, tmp_path):
+        run = cams.latest_run(self.NOW)
+        responses = no2_responses(tmp_path, run, [0, 3], [0, 3])
+        responses["particulate_matter_2.5um"] = b""  # decodes to no fields
+        out = tmp_path / "out"
+        assert cams.update_all(out, self.NOW, FakeADS(responses)) == ["pm25"]
+        assert not (out / "model/pm25/manifest.json").exists()
+        assert len(json.loads((out / "model/no2/manifest.json").read_text())["frames"]) == 2
+
+
+class TestSharedDeadline:
+    def test_budget_is_shared_across_requests(self):
+        now = [0.0]
+
+        class Client:
+            timeout_s = None
+
+            def retrieve(self, dataset, request):
+                now[0] += 400  # each request takes 400 s
+                return b"ok"
+
+        client = Client()
+        budget = cams.SharedDeadline(client, 1000, clock=lambda: now[0])
+        assert budget.retrieve("d", {}) == b"ok" and client.timeout_s == 1000
+        assert budget.retrieve("d", {}) == b"ok" and client.timeout_s == 600
+        budget.retrieve("d", {})
+        assert client.timeout_s == 200
+        with pytest.raises(ads.ADSError, match="budget"):
+            budget.retrieve("d", {})
 
 
 class TestADS:

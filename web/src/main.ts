@@ -35,12 +35,12 @@ interface PollutantData {
   latest: StationFrame | null;
   index: StationIndex | null;
   manifest: StationManifest | null;
+  model: ModelManifest | null;
 }
 
 const state = {
   pollutant: 'pm25' as Pollutant,
   data: {} as Record<Pollutant, PollutantData>,
-  model: null as ModelManifest | null,
   slots: [] as Slot[],
   slot: 0,
   layers: { stations: true, model: true, wind: true },
@@ -78,20 +78,23 @@ function renderLegend(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-pollutant]').forEach((btn) => {
     btn.setAttribute('aria-pressed', String(btn.dataset.pollutant === state.pollutant));
   });
-  const modelAvailable = state.pollutant === 'pm25' && !!state.model?.frames.length;
+  const modelAvailable = !!state.data[state.pollutant]?.model?.frames.length;
   $<HTMLInputElement>('layer-model').disabled = !modelAvailable;
-  $('model-sub').textContent = state.pollutant === 'pm25'
-    ? (state.model?.frames.length ? 'CAMS, updated twice a day' : 'Not available yet')
-    : 'PM2.5 only for now';
+  $('model-sub').textContent = !modelAvailable
+    ? 'Not available yet'
+    : state.pollutant === 'no2'
+      ? 'CAMS, approximate: converted using 2 m temperature and surface pressure'
+      : 'CAMS, updated twice a day';
 }
 
 async function loadPollutant(p: Pollutant): Promise<PollutantData> {
   if (state.data[p]) return state.data[p];
-  const [latest, manifest] = await Promise.all([
+  const [latest, manifest, model] = await Promise.all([
     load<unknown>(`stations-${p}.json`).then(validateFrame).catch(() => null),
     load<StationManifest>(`stations/${p}/manifest.json`).catch(() => null),
+    load<ModelManifest>(`model/${p}/manifest.json`).catch(() => null),
   ]);
-  const data: PollutantData = { latest, manifest, index: null };
+  const data: PollutantData = { latest, manifest, model, index: null };
   load<StationIndex>(`stations-${p}-index.json`).then((i) => (data.index = i)).catch(() => undefined);
   state.data[p] = data;
   return data;
@@ -158,21 +161,29 @@ async function main(): Promise<void> {
   $('zoom-in').addEventListener('click', () => map.zoomIn());
   $('zoom-out').addEventListener('click', () => map.zoomOut());
 
-  const modelPromise = load<ModelManifest>('model/pm25/manifest.json').catch(() => null);
   const firstData = loadPollutant('pm25');
 
   map.once('style.load', async () => {
-    const [model, d] = await Promise.all([modelPromise, firstData]);
-    state.model = model;
-    if (!d.latest && !model?.frames.length) {
+    const d = await firstData;
+    if (!d.latest && !d.model?.frames.length) {
       $('status').textContent = 'No data';
       showNotice('Air quality data is not available right now. It refreshes every hour.');
     }
 
-    if (model?.frames.length) {
-      map.addSource('model', { type: 'image', url: DATA + model.frames[0].file, coordinates: model.bounds });
-      map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstSymbolLayer(map));
-    }
+    // One image source shared by the PM2.5 and NO2 model frames, added when a frame is first shown.
+    let modelUrl = '';
+    const showModelFrame = (url: string, bounds: ModelManifest['bounds']) => {
+      if (url === modelUrl) return;
+      modelUrl = url;
+      const source = map.getSource('model') as ImageSource | undefined;
+      if (source) {
+        source.updateImage({ url, coordinates: bounds });
+        return;
+      }
+      map.addSource('model', { type: 'image', url, coordinates: bounds });
+      // Below the labels, or at least below the station dots on a style without labels.
+      map.addLayer({ id: 'model', type: 'raster', source: 'model', paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstSymbolLayer(map) ?? 'stations');
+    };
     map.addSource('stations', { type: 'geojson', data: EMPTY as never });
     map.addLayer({
       id: 'stations',
@@ -208,11 +219,9 @@ async function main(): Promise<void> {
       if (state.selected !== null && fc.features.some((f) => f.id === state.selected)) {
         map.setFeatureState({ source: 'stations', id: state.selected }, { selected: true });
       }
-      if (map.getLayer('model')) {
-        const show = state.airOn && state.layers.model && state.pollutant === 'pm25' && !!slot?.modelFile;
-        map.setLayoutProperty('model', 'visibility', show ? 'visible' : 'none');
-        if (show) (map.getSource('model') as ImageSource).updateImage({ url: DATA + slot!.modelFile! });
-      }
+      const showModel = state.airOn && state.layers.model && !!d?.model && !!slot?.modelFile;
+      if (showModel) showModelFrame(DATA + slot!.modelFile!, d.model!.bounds);
+      if (map.getLayer('model')) map.setLayoutProperty('model', 'visibility', showModel ? 'visible' : 'none');
       if (state.windLayer && state.wind) {
         const near = !slot || Math.abs(slot.t - Date.parse(state.wind.meta.valid)) <= 3 * 3_600_000;
         state.windLayer.setEnabled(state.airOn && state.layers.wind && near);
@@ -224,7 +233,7 @@ async function main(): Promise<void> {
 
     const rebuild = async () => {
       const d = await loadPollutant(state.pollutant);
-      state.slots = buildSlots(d.manifest, state.pollutant === 'pm25' ? state.model : null);
+      state.slots = buildSlots(d.manifest, d.model);
       state.slot = defaultSlot(state.slots);
       const range = $<HTMLInputElement>('slot');
       range.max = String(Math.max(state.slots.length - 1, 0));
