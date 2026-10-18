@@ -62,7 +62,7 @@ def test_pull_copies_live_history_and_skips_missing_files(tmp_path):
 
     counts = history.pull("https://site.test/data", tmp_path, ("pm25",), get_json=get_json,
                           get_bytes=lambda url: (_ for _ in ()).throw(net.FetchError(url)))
-    assert counts == {"stations/pm25": 1, "model/pm25": 0}
+    assert counts == {"stations/pm25": 1, "model/pm25": 0, "wind/wind.json": 0, "wind/wind.png": 0}
     assert (tmp_path / "stations/pm25/20261017T13.json").exists()
     assert not (tmp_path / "stations/pm25/20261017T12.json").exists()
     # the pulled history feeds the next frame, and the missing hour is dropped from the manifest

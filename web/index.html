@@ -44,6 +44,10 @@
               <input type="checkbox" id="layer-model" checked />
               <span><span class="check-title">Model estimate</span><span class="check-sub" id="model-sub">CAMS, updated twice a day</span></span>
             </label>
+            <label class="check">
+              <input type="checkbox" id="layer-wind" checked disabled />
+              <span><span class="check-title">Wind at 10 m</span><span class="check-sub" id="wind-sub">Loading…</span></span>
+            </label>
           </section>
           <section class="section">
             <h2 id="legend-title">PM2.5, µg/m³</h2>
@@ -58,6 +62,7 @@
 
       <main class="mapwrap">
         <div id="map" aria-label="Map of air quality"></div>
+        <canvas id="wind" class="wind" aria-hidden="true"></canvas>
         <div class="zoom" role="group" aria-label="Zoom">
           <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
           <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
@@ -100,6 +105,7 @@
         </figure>
         <dl class="rows">
           <dt>Measured</dt><dd id="st-age"></dd>
+          <dt>Wind at 10 m (GFS)</dt><dd id="st-wind"></dd>
           <dt>Data provider</dt><dd id="st-provider"></dd>
           <dt>Location</dt><dd id="st-coords"></dd>
         </dl>
@@ -110,10 +116,12 @@
     </div>
 
     <footer class="credits">
-      <span>Air quality: <a href="https://openaq.org" target="_blank" rel="noopener">OpenAQ</a> and its <button type="button" class="linklike" id="open-sources">data providers</button></span>
-      <span>Forecast: contains modified Copernicus Atmosphere Monitoring Service information 2026. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.</span>
-      <span>Guideline levels: WHO global air quality guidelines, 2021</span>
-      <span>Map: <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>, data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></span>
+      <span class="long">Air quality: <a href="https://openaq.org" target="_blank" rel="noopener">OpenAQ</a> and its <button type="button" class="linklike" data-open-sources>data providers</button></span>
+      <span class="long">Forecast: contains modified Copernicus Atmosphere Monitoring Service information 2026. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.</span>
+      <span class="long">Wind: NOAA NCEP GFS via NOAA Open Data Dissemination</span>
+      <span class="long">Guideline levels: WHO global air quality guidelines, 2021</span>
+      <span class="long">Map: <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>, data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></span>
+      <span class="short">Data: OpenAQ, Copernicus CAMS, NOAA GFS, WHO. Map © OpenStreetMap contributors. <button type="button" class="linklike" data-open-sources>Sources and credits</button></span>
     </footer>
 
     <dialog id="sources" aria-labelledby="sources-title">
@@ -129,7 +137,11 @@
       <h3>Credits requested by data licences</h3>
       <ul id="attributions" class="plain"></ul>
       <h3>Model forecast</h3>
-      <p>CAMS global atmospheric composition forecasts (surface PM2.5), Copernicus Atmosphere Monitoring Service, via the Atmosphere Data Store, CC BY 4.0. Regridded to Web Mercator and coloured by WHO band for this map.</p>
+      <p>CAMS global atmospheric composition forecasts (surface PM2.5), Copernicus Atmosphere Monitoring Service, via the Atmosphere Data Store, CC BY 4.0. Regridded to Web Mercator and coloured by WHO band for this map. Contains modified Copernicus Atmosphere Monitoring Service information 2026. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.</p>
+      <h3>Wind</h3>
+      <p>NOAA NCEP Global Forecast System (GFS), 10 m wind on the 1° grid, via NOAA Open Data Dissemination on AWS. Shown as animated particles; not original NOAA data.</p>
+      <h3>Base map</h3>
+      <p><a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>, data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</p>
       <p class="note">WHO levels: WHO global air quality guidelines (2021), ISBN 9789240034228, Table 0.1.</p>
     </dialog>
 

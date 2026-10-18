@@ -93,6 +93,13 @@ jobs:
           ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
         run: python -m pipeline.cams --out web/public/data --timeout-min 20
 
+      # Wind changes every 6 hours; the frame pulled from the live site stays if this fails.
+      - name: GFS 10 m wind
+        id: wind
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python -m pipeline.gfs --out web/public/data
+
       - run: npm ci
         working-directory: web
       - run: npm run build
